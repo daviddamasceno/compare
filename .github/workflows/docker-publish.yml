@@ -1,12 +1,12 @@
 name: Publicar Imagem Docker
 
 on:
-  # Gatilho de push para a branch main
+  # O workflow agora roda apenas em push para 'main' ou manualmente.
   push:
     branches:
       - 'main'
   
-  # NOVO: Gatilho para execução manual (workflow_dispatch)
+  # Gatilho para execução manual continua disponível
   workflow_dispatch:
     inputs:
       branch:
@@ -18,13 +18,11 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      # Checkout do código, usando a branch do input manual se aplicável
       - name: Checkout do repositório
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
-      # NOVO PASSO: Ler a versão do arquivo VERSION
       - name: Ler a versão do arquivo
         id: get_version
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -35,16 +33,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # ATUALIZADO: Extração de metadados com a nova tag de versão
       - name: Extrair metadados da imagem Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: damascenod/compare
           tags: |
-            # Adiciona a tag 'latest' para pushes na branch main
             type=raw,value=latest,enable={{is_default_branch}}
-            # Adiciona a tag lida do arquivo VERSION
             type=raw,value=${{ steps.get_version.outputs.VERSION }},enable=true
 
       - name: Construir e enviar imagem Docker
