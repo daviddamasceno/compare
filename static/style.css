@@ -7,6 +7,14 @@
     --header-bg: #ffffff;
     --textarea-bg: #ffffff;
     --result-bg: #e9ecef;
+
+    --diff-context-color: var(--text-color);
+    --diff-removed-bg: #ffeef0; /* Cor de fundo para removido */
+    --diff-removed-text: #bd2c00; /* Cor do texto para removido */
+    --diff-added-bg: #e6ffed;   /* Cor de fundo para adicionado */
+    --diff-added-text: #28a745; /* Cor do texto para adicionado */
+    --line-num-color: #6a737d; /* Cor dos números de linha */
+    --diff-summary-bg: #f6f8fa;
 }
 
 body.dark-mode {
@@ -18,6 +26,14 @@ body.dark-mode {
     --header-bg: #1e1e1e;
     --textarea-bg: #2a2a2a;
     --result-bg: #2a2a2a;
+
+    --diff-context-color: #e0e0e0;
+    --diff-removed-bg: #381216; /* Cor de fundo para removido no dark mode */
+    --diff-removed-text: #ff8c8c; /* Cor do texto para removido no dark mode */
+    --diff-added-bg: #1c3425;   /* Cor de fundo para adicionado no dark mode */
+    --diff-added-text: #7bc98e; /* Cor do texto para adicionado no dark mode */
+    --line-num-color: #8b949e; /* Cor dos números de linha no dark mode */
+    --diff-summary-bg: #161b22;
 }
 
 * { box-sizing: border-box; }
@@ -43,6 +59,7 @@ header {
     align-items: center;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
 }
 
 header h1 {
@@ -56,13 +73,18 @@ header h1 {
     color: var(--text-color);
     cursor: pointer;
     border-radius: 5px;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+#theme-toggle:hover {
+    background-color: var(--border-color);
 }
 
 .editor-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    margin: 20px 0;
+    margin-bottom: 20px;
 }
 
 .editor-pane label {
@@ -73,7 +95,7 @@ header h1 {
 
 textarea {
     width: 100%;
-    height: 40vh;
+    height: 30vh; /* Ajuste para ter espaço para o resultado */
     padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: 5px;
@@ -82,6 +104,7 @@ textarea {
     font-family: "Courier New", Courier, monospace;
     font-size: 14px;
     resize: vertical;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 .actions {
@@ -109,20 +132,110 @@ textarea {
     cursor: not-allowed;
 }
 
-.results-pane h2 {
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
+/* Novo estilo para o display de diff lado a lado */
+.diff-display-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px; /* Linha divisória fina */
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    overflow: hidden; /* Garante que os cantos arredondados funcionem */
+    font-family: "Courier New", Courier, monospace;
+    font-size: 14px;
+    min-height: 200px;
+    margin-top: 20px;
 }
 
-pre {
+.diff-output-pane {
     background-color: var(--result-bg);
-    padding: 15px;
-    border-radius: 5px;
-    white-space: pre-wrap;
+    color: var(--diff-context-color);
+    padding: 0; /* Remove padding padrão para controlar com a linha */
+    white-space: pre-wrap; /* Preserva quebras de linha */
     word-wrap: break-word;
-    min-height: 100px;
-    font-family: "Courier New", Courier, monospace;
+    height: auto; /* Altura ajusta ao conteúdo */
+    overflow-y: auto; /* Scroll individual se necessário */
 }
+
+/* Estilos para cada linha do diff */
+.diff-line {
+    display: flex;
+    line-height: 1.5;
+    padding: 0 5px; /* Padding horizontal para o conteúdo da linha */
+}
+
+.line-num {
+    display: inline-block;
+    width: 40px; /* Largura fixa para números de linha */
+    text-align: right;
+    padding-right: 10px;
+    color: var(--line-num-color);
+    user-select: none; /* Não selecionável */
+    background-color: var(--result-bg); /* Garante que o número de linha tenha o mesmo fundo */
+    flex-shrink: 0; /* Não permite que os números de linha diminuam */
+}
+
+.line-content {
+    flex-grow: 1; /* Ocupa o espaço restante */
+    padding-left: 5px;
+    /* Adiciona um background sutil para linhas removidas/adicionadas */
+}
+
+.diff-line.removed .line-content {
+    background-color: var(--diff-removed-bg);
+    color: var(--diff-removed-text);
+}
+
+.diff-line.added .line-content {
+    background-color: var(--diff-added-bg);
+    color: var(--diff-added-text);
+}
+
+.diff-line.context .line-content {
+    /* Background padrão, sem cor especial para linhas de contexto */
+}
+
+/* Estilos para o resumo das diferenças no topo */
+.diff-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--diff-summary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    font-weight: bold;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.summary-removals {
+    color: var(--diff-removed-text);
+}
+
+.summary-additions {
+    color: var(--diff-added-text);
+}
+
+.summary-lines-total {
+    color: var(--line-num-color);
+}
+
+.copy-button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: background-color 0.2s;
+}
+.copy-button:hover {
+    background-color: var(--primary-hover-color);
+}
+
+
+/* Footer */
 footer {
     text-align: center;
     margin-top: 40px;
@@ -132,4 +245,8 @@ footer {
 }
 footer a {
     color: var(--primary-color);
+    text-decoration: none;
+}
+footer a:hover {
+    text-decoration: underline;
 }
