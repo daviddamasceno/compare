@@ -1,8 +1,12 @@
 services:
   compare:
+    # Esta linha instrui o Docker a baixar a imagem do Docker Hub.
+    # A tag :latest será usada por padrão.
     image: damascenod/compare
-    build: .
+    
     # Mapeia a porta 8000 do seu computador para a porta 8000 do container
     ports:
       - "8000:8000"
+      
+    # Reinicia o container automaticamente em caso de falha
     restart: unless-stopped

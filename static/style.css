@@ -66,20 +66,6 @@ header h1 {
     margin: 0;
 }
 
-#theme-toggle {
-    padding: 8px 16px;
-    border: 1px solid var(--border-color);
-    background-color: transparent;
-    color: var(--text-color);
-    cursor: pointer;
-    border-radius: 5px;
-    font-weight: bold;
-    transition: background-color 0.2s;
-}
-#theme-toggle:hover {
-    background-color: var(--border-color);
-}
-
 .editor-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -234,7 +220,6 @@ textarea {
     background-color: var(--primary-hover-color);
 }
 
-
 /* Footer */
 footer {
     text-align: center;
@@ -249,4 +234,38 @@ footer a {
 }
 footer a:hover {
     text-decoration: underline;
+}
+
+/* NOVOS ESTILOS PARA O BOTÃO DE TEMA COM ÍCONES */
+#theme-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+#theme-toggle:hover {
+    background-color: var(--border-color);
+}
+#theme-toggle svg {
+    color: var(--text-color);
+}
+
+/* LÓGICA PARA MOSTRAR/ESCONDER OS ÍCONES */
+body.dark-mode #sun-icon {
+    display: block; /* Mostra o sol no tema escuro (para mudar para claro) */
+}
+body.dark-mode #moon-icon {
+    display: none;
+}
+
+body:not(.dark-mode) #sun-icon {
+    display: none;
+}
+body:not(.dark-mode) #moon-icon {
+    display: block; /* Mostra a lua no tema claro (para mudar para escuro) */
 }
