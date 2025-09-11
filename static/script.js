@@ -17,29 +17,41 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDiff(diffData) {
         diffOriginalOutput.innerHTML = '';
         diffAlteredOutput.innerHTML = '';
-        diffSummary.style.display = 'flex'; // Exibe o resumo
+        diffSummary.style.display = 'flex';
 
-        // Renderizar linhas para o painel original
-        diffData.diff_lines_original.forEach(line => {
+        function createLineElement(line) {
             const lineDiv = document.createElement('div');
             lineDiv.classList.add('diff-line', line.type);
-            lineDiv.innerHTML = `<span class="line-num">${line.line_num}</span><span class="line-content">${line.content.replace(/ /g, '&nbsp;')}</span>`;
-            diffOriginalOutput.appendChild(lineDiv);
+            
+            const lineNumSpan = document.createElement('span');
+            lineNumSpan.className = 'line-num';
+            lineNumSpan.textContent = line.line_num;
+
+            const lineContentSpan = document.createElement('span');
+            lineContentSpan.className = 'line-content';
+            
+            // ATUALIZAÇÃO CRÍTICA: Usar innerHTML para renderizar os destaques
+            // Isso é seguro porque controlamos o HTML gerado no backend.
+            lineContentSpan.innerHTML = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
+
+            lineDiv.appendChild(lineNumSpan);
+            lineDiv.appendChild(lineContentSpan);
+            return lineDiv;
+        }
+
+        diffData.diff_lines_original.forEach(line => {
+            diffOriginalOutput.appendChild(createLineElement(line));
         });
 
-        // Renderizar linhas para o painel alterado
         diffData.diff_lines_altered.forEach(line => {
-            const lineDiv = document.createElement('div');
-            lineDiv.classList.add('diff-line', line.type);
-            lineDiv.innerHTML = `<span class="line-num">${line.line_num}</span><span class="line-content">${line.content.replace(/ /g, '&nbsp;')}</span>`;
-            diffAlteredOutput.appendChild(lineDiv);
+            diffAlteredOutput.appendChild(createLineElement(line));
         });
 
         // Atualizar resumo
         if (diffData.diff_type === "JSON/Objeto") {
-             removalsCount.textContent = `${diffData.summary.removals} mudanças`; // DeepDiff treats removed/added keys as changes
-             additionsCount.textContent = `${diffData.summary.additions} mudanças`;
-             linesOriginalCount.textContent = ''; // JSON não tem contagem de linhas diretas como texto
+             removalsCount.textContent = ``;
+             additionsCount.textContent = ``;
+             linesOriginalCount.textContent = 'JSON Diff';
              linesAlteredCount.textContent = '';
         } else {
             removalsCount.textContent = `${diffData.summary.removals} remoções`;

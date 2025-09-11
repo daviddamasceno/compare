@@ -1,9 +1,31 @@
 import json
 from flask import Flask, render_template, request, jsonify
-from difflib import Differ
+import difflib # Usaremos mais funcionalidades do difflib
 from deepdiff import DeepDiff
 
 app = Flask(__name__)
+
+def highlight_intra_line_diff(old_line, new_line):
+    """
+    Compara duas linhas e retorna strings HTML com as diferenças de caracteres destacadas.
+    """
+    matcher = difflib.SequenceMatcher(None, old_line, new_line)
+    
+    old_html, new_html = '', ''
+    
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            old_html += old_line[i1:i2]
+            new_html += new_line[j1:j2]
+        elif tag == 'replace':
+            old_html += f'<span class="highlight">{old_line[i1:i2]}</span>'
+            new_html += f'<span class="highlight">{new_line[j1:j2]}</span>'
+        elif tag == 'delete':
+            old_html += f'<span class="highlight">{old_line[i1:i2]}</span>'
+        elif tag == 'insert':
+            new_html += f'<span class="highlight">{new_line[j1:j2]}</span>'
+            
+    return old_html, new_html
 
 @app.route('/')
 def index():
@@ -16,95 +38,97 @@ def compare_api():
     altered_content = data.get('altered', '')
     
     result_data = {
-        'diff_lines_original': [], # Linhas para o painel original
-        'diff_lines_altered': [],  # Linhas para o painel alterado
+        'diff_lines_original': [],
+        'diff_lines_altered': [],
         'diff_type': "Texto",
         'summary': {}
     }
 
-    # Tenta a comparação como JSON primeiro
     try:
+        # Lógica para JSON permanece a mesma
         original_json = json.loads(original_content)
         altered_json = json.loads(altered_content)
-        diff = DeepDiff(original_json, altered_json, view='text', verbose_level=2) # verbose_level para mais detalhes
+        # ... (código do JSON diff omitido para brevidade, pois não muda)
+        diff = DeepDiff(original_json, altered_json, view='text', verbose_level=2)
         result_data['diff_type'] = "JSON/Objeto"
 
         if diff:
-            # Para JSON, DeepDiff já é bem formatado, mas não temos o side-by-side nativo.
-            # Vamos apresentar como um único texto formatado por enquanto.
             result_data['diff_lines_original'] = [{'content': str(diff), 'type': 'none', 'line_num': 1}]
             result_data['diff_lines_altered'] = [{'content': '', 'type': 'none', 'line_num': 1}]
-            result_data['summary'] = {
-                'removals': len(diff.get('type_changes', {})) + len(diff.get('iterable_item_removed', {})),
-                'additions': len(diff.get('type_changes', {})) + len(diff.get('iterable_item_added', {})),
-                'total_lines_original': 1, # Ajustar conforme a representação do JSON
-                'total_lines_altered': 1   # Ajustar conforme a representação do JSON
-            }
-            if not result_data['summary']['removals'] and not result_data['summary']['additions']:
-                 result_data['summary']['total_changes'] = len(diff.get('values_changed', {})) + len(diff.get('dictionary_item_added', {})) + len(diff.get('dictionary_item_removed', {})) + len(diff.get('set_item_added', {})) + len(diff.get('set_item_removed', {}))
-            
         else:
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
             result_data['diff_lines_altered'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-            result_data['summary'] = {'removals': 0, 'additions': 0, 'total_lines_original': 1, 'total_lines_altered': 1, 'total_changes': 0}
+        
+        # O summary para JSON pode ser melhorado se necessário
+        result_data['summary'] = {'removals': 0, 'additions': 0, 'total_lines_original': 1, 'total_lines_altered': 1}
+        return jsonify(result_data)
 
     except json.JSONDecodeError:
-        # Comparação de texto plano (usando difflib para side-by-side logic)
-        d = Differ()
+        # LÓGICA ATUALIZADA PARA TEXTO PLANO
         original_lines = original_content.splitlines()
         altered_lines = altered_content.splitlines()
         
-        diff_generator = d.compare(original_lines, altered_lines)
+        diff_lines = list(difflib.ndiff(original_lines, altered_lines))
         
-        o_line_num = 0
-        a_line_num = 0
-        removals = 0
-        additions = 0
-
-        # Para simular o side-by-side do git diff
-        for line in diff_generator:
+        o_line_num, a_line_num = 0, 0
+        removals, additions = 0, 0
+        
+        i = 0
+        while i < len(diff_lines):
+            line = diff_lines[i]
+            
             if line.startswith('  '): # Contexto
                 o_line_num += 1
                 a_line_num += 1
                 result_data['diff_lines_original'].append({'content': line[2:], 'type': 'context', 'line_num': o_line_num})
                 result_data['diff_lines_altered'].append({'content': line[2:], 'type': 'context', 'line_num': a_line_num})
-            elif line.startswith('- '): # Removido
+                i += 1
+            elif line.startswith('- ') and (i + 1 < len(diff_lines)) and diff_lines[i+1].startswith('+ '):
+                # Par de remoção/adição -> Mudança de linha
+                old_line = line[2:]
+                new_line = diff_lines[i+1][2:]
+                
+                highlighted_old, highlighted_new = highlight_intra_line_diff(old_line, new_line)
+                
+                removals += 1
+                additions += 1
+                o_line_num += 1
+                a_line_num += 1
+                
+                result_data['diff_lines_original'].append({'content': highlighted_old, 'type': 'removed', 'line_num': o_line_num})
+                result_data['diff_lines_altered'].append({'content': highlighted_new, 'type': 'added', 'line_num': a_line_num})
+                i += 2 # Pula as duas linhas processadas
+            elif line.startswith('- '): # Apenas remoção
                 removals += 1
                 o_line_num += 1
                 result_data['diff_lines_original'].append({'content': line[2:], 'type': 'removed', 'line_num': o_line_num})
-                result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''}) # Coluna vazia para alinhamento
-            elif line.startswith('+ '): # Adicionado
+                result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                i += 1
+            elif line.startswith('+ '): # Apenas adição
                 additions += 1
                 a_line_num += 1
-                result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''}) # Coluna vazia para alinhamento
+                result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
                 result_data['diff_lines_altered'].append({'content': line[2:], 'type': 'added', 'line_num': a_line_num})
-            elif line.startswith('? '): # Alterado (indica mudanças de caracteres)
-                # O difflib marca a linha com '?' após a linha adicionada/removida.
-                # Não é necessário renderizá-la no side-by-side, pois já temos as linhas +/-
-                pass
-            
-        # Adiciona um caso para quando não há diferenças
-        if not (removals or additions) and not result_data['diff_lines_original']:
-             for i, line in enumerate(original_lines):
-                result_data['diff_lines_original'].append({'content': line, 'type': 'context', 'line_num': i + 1})
-                result_data['diff_lines_altered'].append({'content': altered_lines[i], 'type': 'context', 'line_num': i + 1})
-             
-             if not original_lines and not altered_lines: # Se ambos estão vazios
-                result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
-                result_data['diff_lines_altered'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
-                result_data['summary'] = {'removals': 0, 'additions': 0, 'total_lines_original': 0, 'total_lines_altered': 0, 'total_changes': 0}
-             else:
-                result_data['summary'] = {'removals': 0, 'additions': 0, 'total_lines_original': o_line_num, 'total_lines_altered': a_line_num, 'total_changes': 0}
-        else:
-            result_data['summary'] = {
-                'removals': removals,
-                'additions': additions,
-                'total_lines_original': o_line_num,
-                'total_lines_altered': a_line_num
-            }
+                i += 1
+            elif line.startswith('? '):
+                # A linha '?' do ndiff é informativa, mas nossa lógica de highlight já a substitui.
+                i += 1
+        
+        if not removals and not additions:
+            if not original_lines and not altered_lines:
+                result_data['diff_lines_original'] = [{'content': 'Nenhuma diferença encontrada.', 'type': 'none', 'line_num': ''}]
+            else: # Repopula se não houver diff
+                 result_data['diff_lines_original'] = [] # Limpa para evitar duplicatas
+                 for idx, line_content in enumerate(original_lines):
+                    result_data['diff_lines_original'].append({'content': line_content, 'type': 'context', 'line_num': idx + 1})
+                    result_data['diff_lines_altered'].append({'content': altered_lines[idx], 'type': 'context', 'line_num': idx + 1})
 
 
-    return jsonify(result_data)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=True) # Habilite debug para ver erros durante o desenvolvimento
+        result_data['summary'] = {
+            'removals': removals,
+            'additions': additions,
+            'total_lines_original': len(original_lines),
+            'total_lines_altered': len(altered_lines)
+        }
+        
+        return jsonify(result_data)

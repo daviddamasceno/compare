@@ -269,3 +269,24 @@ body:not(.dark-mode) #sun-icon {
 body:not(.dark-mode) #moon-icon {
     display: block; /* Mostra a lua no tema claro (para mudar para escuro) */
 }
+
+/* NOVO: Estilo para o highlight de caracteres dentro de uma linha */
+.line-content .highlight {
+    background-color: var(--diff-removed-bg); /* Usa um fundo mais escuro ou diferente */
+    border-radius: 3px;
+    padding: 1px 0;
+}
+
+/* O highlight dentro de uma linha adicionada deve ter a cor de adição */
+.diff-line.added .line-content .highlight {
+    background-color: var(--diff-added-bg);
+}
+
+/* Ajustando as cores para o modo escuro para melhor contraste */
+body.dark-mode .line-content .highlight {
+    background-color: #7f1f1f; /* Vermelho mais escuro */
+}
+
+body.dark-mode .diff-line.added .line-content .highlight {
+    background-color: #125324; /* Verde mais escuro */
+}
