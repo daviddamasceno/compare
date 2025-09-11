@@ -1,0 +1,48 @@
+# Nome do workflow que aparecerá na aba "Actions" do GitHub
+name: Publicar Imagem Docker
+
+# Define os gatilhos (triggers) que iniciam o workflow
+on:
+  push:
+    branches:
+      - 'main' # Executa quando houver um push na branch 'main'
+    tags:
+      - 'v*.*.*' # Executa quando uma tag de versão for criada (ex: v1.0.0)
+
+# Define os trabalhos (jobs) a serem executados
+jobs:
+  build-and-push:
+    # O tipo de máquina virtual que o job irá rodar
+    runs-on: ubuntu-latest
+
+    # Os passos que compõem o job
+    steps:
+      # 1. Baixa o código do seu repositório para a máquina virtual
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      # 2. Faz o login no Docker Hub usando os segredos que configuramos
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. Extrai metadados (como tags e labels) da imagem Docker
+      #    Isso é uma boa prática para nomear a imagem automaticamente.
+      #    - Se for um push na 'main', ele usará a tag 'latest'.
+      #    - Se for uma tag Git 'v1.2.0', ele usará a tag '1.2.0'.
+      - name: Extrair metadados da imagem Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/comparador-universal
+
+      # 4. Constrói a imagem Docker e a envia para o Docker Hub
+      - name: Construir e enviar imagem Docker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
