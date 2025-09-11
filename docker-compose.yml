@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  compare:
+    # Nome da imagem que será gerada e pode ser enviada ao Docker Hub
+    image: damascenod/compare
+    # Constrói a imagem a partir do Dockerfile no diretório atual
+    build: .
+    # Mapeia a porta 8000 do container para a porta 8000 da sua máquina
+    ports:
+      - "8000:8000"
+    # Reinicia o container automaticamente em caso de falha
+    restart: unless-stopped

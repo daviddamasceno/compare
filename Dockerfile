@@ -1,24 +1,30 @@
-# Passo 1: Usar uma imagem base oficial do Python.
-# Usamos a versão 'bullseye' (baseada em Debian 11) que tem boa compatibilidade de pacotes.
-FROM python:3.11-bullseye
+# Estágio 1: Base Python
+FROM python:3.11-slim as base
 
-# Passo 2: Instalar as dependências do sistema operacional necessárias para o Tkinter.
-# -y aceita automaticamente qualquer prompt
-# python3-tk é o pacote para a biblioteca gráfica Tkinter
-RUN apt-get update && apt-get install -y \
-    python3-tk \
-    && rm -rf /var/lib/apt/lists/*
+# Evita que o Python escreva arquivos .pyc
+ENV PYTHONDONTWRITEBYTECODE 1
+# Garante que o output do Python seja enviado diretamente, sem buffer
+ENV PYTHONUNBUFFERED 1
 
-# Passo 3: Definir o diretório de trabalho dentro do container.
 WORKDIR /app
 
-# Passo 4: Copiar o arquivo de dependências e instalar as bibliotecas Python.
-# Copiar primeiro o requirements.txt aproveita o cache do Docker.
+# Instala as dependências
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Passo 5: Copiar o restante do código da aplicação para o diretório de trabalho.
+# Estágio 2: Imagem final
+FROM base
+
+WORKDIR /app
+
+# Copia os arquivos da aplicação
 COPY . .
 
-# Passo 6: Definir o comando para executar a aplicação quando o container iniciar.
-CMD ["python", "main.py"]
+# Expõe a porta que o Gunicorn irá usar
+EXPOSE 8000
+
+# Comando para iniciar o servidor Gunicorn em produção
+# --workers 3: Um bom número de processos para uma aplicação pequena
+# --bind 0.0.0.0:8000: Permite que o container seja acessado de fora
+# app:app: Aponta para o objeto 'app' dentro do arquivo 'app.py'
+CMD ["gunicorn", "--workers", "3", "--bind", "0.0.0.0:8000", "app:app"]

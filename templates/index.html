@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare - Ferramenta de Diff Online</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔀</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Compare</h1>
+            <button id="theme-toggle">Mudar Tema</button>
+        </header>
+
+        <main>
+            <div class="editor-grid">
+                <div class="editor-pane">
+                    <label for="original-text">Texto Original</label>
+                    <textarea id="original-text" placeholder="Cole ou digite o texto original aqui..."></textarea>
+                </div>
+                <div class="editor-pane">
+                    <label for="altered-text">Texto Alterado</label>
+                    <textarea id="altered-text" placeholder="Cole ou digite o texto alterado aqui..."></textarea>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button id="compare-btn">Encontrar Diferença</button>
+            </div>
+
+            <div class="results-pane">
+                <h2>Resultado (<span id="diff-type"></span>)</h2>
+                <pre id="result-output">Aguardando comparação...</pre>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Desenvolvido com Flask & Vanilla JS. <a href="https://github.com/daviddamasceno/compare" target="_blank">Ver no GitHub</a></p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
