@@ -29,7 +29,14 @@ def highlight_intra_line_diff(old_line, new_line):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    """ Rota principal que serve a página web (frontend). """
+    try:
+        with open('VERSION', 'r') as f:
+            app_version = f.read().strip()
+    except FileNotFoundError:
+        app_version = "N/A"
+        
+    return render_template('index.html', app_version=app_version)
 
 @app.route('/api/compare', methods=['POST'])
 def compare_api():
