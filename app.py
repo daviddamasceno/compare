@@ -63,7 +63,6 @@ def compare_api():
         original_lines = original_content.splitlines()
         altered_lines = altered_content.splitlines()
 
-        # --- ALGORITMO FINAL E ROBUSTO ---
         matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
         
         o_line_num, a_line_num = 0, 0
@@ -77,32 +76,49 @@ def compare_api():
                     line = original_lines[i]
                     result_data['diff_lines_original'].append({'content': line, 'type': 'context', 'line_num': o_line_num})
                     result_data['diff_lines_altered'].append({'content': line, 'type': 'context', 'line_num': a_line_num})
-            else:
-                # Trata delete, insert e replace com uma lógica unificada para garantir o alinhamento
+            
+            elif tag == 'delete':
+                for i in range(i1, i2):
+                    o_line_num += 1
+                    removals += 1
+                    result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'removed', 'line_num': o_line_num})
+                    result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+
+            elif tag == 'insert':
+                for j in range(j1, j2):
+                    a_line_num += 1
+                    additions += 1
+                    result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                    result_data['diff_lines_altered'].append({'content': altered_lines[j], 'type': 'added', 'line_num': a_line_num})
+
+            elif tag == 'replace':
                 old_block = original_lines[i1:i2]
                 new_block = altered_lines[j1:j2]
                 
                 for old_line, new_line in zip_longest(old_block, new_block):
+                    # --- LÓGICA DE CONTAGEM DE LINHAS CORRIGIDA ---
+                    current_o_num = ''
                     if old_line is not None:
                         o_line_num += 1
                         removals += 1
+                        current_o_num = o_line_num
+                    
+                    current_a_num = ''
                     if new_line is not None:
                         a_line_num += 1
                         additions += 1
+                        current_a_num = a_line_num
                     
-                    # Se há linhas em ambos os lados, é uma alteração com highlight
                     if old_line is not None and new_line is not None:
                         h_old, h_new = highlight_intra_line_diff(old_line, new_line)
-                        result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': o_line_num})
-                        result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': a_line_num})
-                    # Se há apenas linha antiga, é uma deleção pura
+                        result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': current_o_num})
+                        result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': current_a_num})
                     elif old_line is not None:
-                        result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': o_line_num})
+                        result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': current_o_num})
                         result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                    # Se há apenas linha nova, é uma adição pura
                     elif new_line is not None:
                         result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                        result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': a_line_num})
+                        result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
 
         if not original_content and not altered_content:
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]

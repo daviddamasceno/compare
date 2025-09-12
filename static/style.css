@@ -137,7 +137,7 @@ textarea {
 .diff-line {
     display: flex;
     line-height: 1.5;
-    background-color: transparent; /* Garante que a linha em si não tenha fundo */
+    background-color: transparent;
 }
 
 .diff-line.removed { background-color: var(--diff-removed-bg); }
@@ -154,14 +154,13 @@ textarea {
     flex-shrink: 0;
 }
 
-/* --- LÓGICA FINAL E DEFINITIVA PARA LINHAS DE INDENTAÇÃO --- */
+/* --- LÓGICA FINAL E DEFINITIVA PARA LINHAS DE INDENTAÇÃO (CSS) --- */
 .line-content {
     flex-grow: 1;
     position: relative;
-    padding-left: 5px;
+    padding-left: 5px; /* Deixa um pequeno espaço inicial */
 }
 
-/* O pseudo-elemento desenha as linhas de indentação */
 .line-content::before {
     content: '';
     position: absolute;
@@ -169,19 +168,23 @@ textarea {
     left: 0;
     height: 100%;
     
-    /* Largura do pseudo-elemento - ajuste para mais níveis de indentação se necessário */
     width: 120px; 
-    pointer-events: none; /* Impede que o elemento interfira com o mouse */
+    pointer-events: none;
     
     --indent-line-color: rgba(0, 0, 0, 0.15);
+    
+    /* CORREÇÃO: O gradiente agora tem a posição inicial calculada */
     background: repeating-linear-gradient(
         to right,
-        transparent,
-        transparent calc(2ch - 1px),
-        var(--indent-line-color) calc(2ch - 1px),
-        var(--indent-line-color) 2ch
+        transparent 0,
+        transparent 2ch,
+        var(--indent-line-color) 2ch,
+        var(--indent-line-color) calc(2ch + 1px)
     );
-    background-position-x: 5px; /* Alinha com o padding-left */
+    background-size: 2ch 100%; /* O tamanho do padrão é 2ch */
+    
+    /* A posição começa no padding, garantindo que não cruze o texto */
+    background-position-x: 5px;
 }
 body.dark-mode .line-content::before {
     --indent-line-color: rgba(255, 255, 255, 0.1);
