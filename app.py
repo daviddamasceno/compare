@@ -1,29 +1,37 @@
 import json
 from flask import Flask, render_template, request, jsonify
-import difflib # Usaremos mais funcionalidades do difflib
+import difflib
 from deepdiff import DeepDiff
+from itertools import zip_longest
 
 app = Flask(__name__)
 
 def highlight_intra_line_diff(old_line, new_line):
     """
-    Compara duas linhas e retorna strings HTML com as diferenças de caracteres destacadas.
+    Compara duas strings e retorna strings HTML com as diferenças de
+    caracteres/palavras destacadas dentro de um <span class="highlight">.
     """
     matcher = difflib.SequenceMatcher(None, old_line, new_line)
-    
     old_html, new_html = '', ''
     
+    # Escapa caracteres HTML para evitar problemas de renderização
+    def escape(s):
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        old_fragment = escape(old_line[i1:i2])
+        new_fragment = escape(new_line[j1:j2])
+        
         if tag == 'equal':
-            old_html += old_line[i1:i2]
-            new_html += new_line[j1:j2]
+            old_html += old_fragment
+            new_html += new_fragment
         elif tag == 'replace':
-            old_html += f'<span class="highlight">{old_line[i1:i2]}</span>'
-            new_html += f'<span class="highlight">{new_line[j1:j2]}</span>'
+            old_html += f'<span class="highlight">{old_fragment}</span>' if old_fragment else ''
+            new_html += f'<span class="highlight">{new_fragment}</span>' if new_fragment else ''
         elif tag == 'delete':
-            old_html += f'<span class="highlight">{old_line[i1:i2]}</span>'
+            old_html += f'<span class="highlight">{old_fragment}</span>'
         elif tag == 'insert':
-            new_html += f'<span class="highlight">{new_line[j1:j2]}</span>'
+            new_html += f'<span class="highlight">{new_fragment}</span>'
             
     return old_html, new_html
 
@@ -55,81 +63,77 @@ def compare_api():
         # Lógica para JSON permanece a mesma
         original_json = json.loads(original_content)
         altered_json = json.loads(altered_content)
-        # ... (código do JSON diff omitido para brevidade, pois não muda)
         diff = DeepDiff(original_json, altered_json, view='text', verbose_level=2)
         result_data['diff_type'] = "JSON/Objeto"
-
         if diff:
             result_data['diff_lines_original'] = [{'content': str(diff), 'type': 'none', 'line_num': 1}]
-            result_data['diff_lines_altered'] = [{'content': '', 'type': 'none', 'line_num': 1}]
         else:
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-            result_data['diff_lines_altered'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-        
-        # O summary para JSON pode ser melhorado se necessário
-        result_data['summary'] = {'removals': 0, 'additions': 0, 'total_lines_original': 1, 'total_lines_altered': 1}
+        result_data['summary'] = {'removals': 0, 'additions': 0}
         return jsonify(result_data)
 
     except json.JSONDecodeError:
-        # LÓGICA ATUALIZADA PARA TEXTO PLANO
+        # --- NOVO ALGORITMO DE COMPARAÇÃO DE TEXTO ---
         original_lines = original_content.splitlines()
         altered_lines = altered_content.splitlines()
-        
-        diff_lines = list(difflib.ndiff(original_lines, altered_lines))
+
+        matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
         
         o_line_num, a_line_num = 0, 0
         removals, additions = 0, 0
-        
-        i = 0
-        while i < len(diff_lines):
-            line = diff_lines[i]
-            
-            if line.startswith('  '): # Contexto
-                o_line_num += 1
-                a_line_num += 1
-                result_data['diff_lines_original'].append({'content': line[2:], 'type': 'context', 'line_num': o_line_num})
-                result_data['diff_lines_altered'].append({'content': line[2:], 'type': 'context', 'line_num': a_line_num})
-                i += 1
-            elif line.startswith('- ') and (i + 1 < len(diff_lines)) and diff_lines[i+1].startswith('+ '):
-                # Par de remoção/adição -> Mudança de linha
-                old_line = line[2:]
-                new_line = diff_lines[i+1][2:]
-                
-                highlighted_old, highlighted_new = highlight_intra_line_diff(old_line, new_line)
-                
-                removals += 1
-                additions += 1
-                o_line_num += 1
-                a_line_num += 1
-                
-                result_data['diff_lines_original'].append({'content': highlighted_old, 'type': 'removed', 'line_num': o_line_num})
-                result_data['diff_lines_altered'].append({'content': highlighted_new, 'type': 'added', 'line_num': a_line_num})
-                i += 2 # Pula as duas linhas processadas
-            elif line.startswith('- '): # Apenas remoção
-                removals += 1
-                o_line_num += 1
-                result_data['diff_lines_original'].append({'content': line[2:], 'type': 'removed', 'line_num': o_line_num})
-                result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                i += 1
-            elif line.startswith('+ '): # Apenas adição
-                additions += 1
-                a_line_num += 1
-                result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                result_data['diff_lines_altered'].append({'content': line[2:], 'type': 'added', 'line_num': a_line_num})
-                i += 1
-            elif line.startswith('? '):
-                # A linha '?' do ndiff é informativa, mas nossa lógica de highlight já a substitui.
-                i += 1
-        
-        if not removals and not additions:
-            if not original_lines and not altered_lines:
-                result_data['diff_lines_original'] = [{'content': 'Nenhuma diferença encontrada.', 'type': 'none', 'line_num': ''}]
-            else: # Repopula se não houver diff
-                 result_data['diff_lines_original'] = [] # Limpa para evitar duplicatas
-                 for idx, line_content in enumerate(original_lines):
-                    result_data['diff_lines_original'].append({'content': line_content, 'type': 'context', 'line_num': idx + 1})
-                    result_data['diff_lines_altered'].append({'content': altered_lines[idx], 'type': 'context', 'line_num': idx + 1})
 
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                for i in range(i1, i2):
+                    o_line_num += 1
+                    a_line_num += 1
+                    result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'context', 'line_num': o_line_num})
+                    result_data['diff_lines_altered'].append({'content': altered_lines[j1 + (i - i1)], 'type': 'context', 'line_num': a_line_num})
+            
+            if tag == 'delete' or tag == 'replace':
+                for i in range(i1, i2):
+                    o_line_num += 1
+                    removals += 1
+                    result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'removed', 'line_num': o_line_num})
+            
+            if tag == 'insert' or tag == 'replace':
+                for j in range(j1, j2):
+                    a_line_num += 1
+                    additions += 1
+                    result_data['diff_lines_altered'].append({'content': altered_lines[j], 'type': 'added', 'line_num': a_line_num})
+            
+            # Lógica para parear linhas alteradas e aplicar o highlight intra-linha
+            if tag == 'replace':
+                old_block = original_lines[i1:i2]
+                new_block = altered_lines[j1:j2]
+
+                # Remove as linhas de remoção/adição completas que acabamos de adicionar
+                result_data['diff_lines_original'] = result_data['diff_lines_original'][:-len(old_block)]
+                result_data['diff_lines_altered'] = result_data['diff_lines_altered'][:-len(new_block)]
+                
+                # Para cada par de linhas (ou linha solitária se os blocos tiverem tamanhos diferentes)
+                for old_line, new_line in zip_longest(old_block, new_block, fillvalue=None):
+                    if old_line is not None and new_line is not None:
+                        # Par perfeito -> aplicar diff intra-linha
+                        o_line_num -= 1 # Reajusta o contador
+                        a_line_num -= 1
+                        highlighted_old, highlighted_new = highlight_intra_line_diff(old_line, new_line)
+                        result_data['diff_lines_original'].append({'content': highlighted_old, 'type': 'removed', 'line_num': o_line_num + 1})
+                        result_data['diff_lines_altered'].append({'content': highlighted_new, 'type': 'added', 'line_num': a_line_num + 1})
+                    elif old_line is not None:
+                        # Apenas linha antiga existe neste par (bloco de remoção maior)
+                         o_line_num -= 1
+                         result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': o_line_num + 1})
+                         result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                    elif new_line is not None:
+                         # Apenas linha nova existe neste par (bloco de adição maior)
+                         a_line_num -= 1
+                         result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                         result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': a_line_num + 1})
+
+
+        if not original_content and not altered_content:
+            result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
 
         result_data['summary'] = {
             'removals': removals,
@@ -139,3 +143,6 @@ def compare_api():
         }
         
         return jsonify(result_data)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8000)
