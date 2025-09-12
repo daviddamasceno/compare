@@ -30,9 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const lineContentSpan = document.createElement('span');
             lineContentSpan.className = 'line-content';
             
-            // ATUALIZAÇÃO CRÍTICA: Usar innerHTML para renderizar os destaques
-            // Isso é seguro porque controlamos o HTML gerado no backend.
-            lineContentSpan.innerHTML = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
+            // ATUALIZAÇÃO: Envolve o conteúdo em um span para a máscara de fundo
+            const content = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
+            lineContentSpan.innerHTML = `<span class="text-wrapper">${content}</span>`;
 
             lineDiv.appendChild(lineNumSpan);
             lineDiv.appendChild(lineContentSpan);

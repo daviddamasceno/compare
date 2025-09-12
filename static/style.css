@@ -62,9 +62,7 @@ header {
     margin-bottom: 20px;
 }
 
-header h1 {
-    margin: 0;
-}
+header h1 { margin: 0; }
 
 .editor-grid {
     display: grid;
@@ -110,14 +108,8 @@ textarea {
     transition: background-color 0.2s;
 }
 
-#compare-btn:hover {
-    background-color: var(--primary-hover-color);
-}
-
-#compare-btn:disabled {
-    background-color: #888;
-    cursor: not-allowed;
-}
+#compare-btn:hover { background-color: var(--primary-hover-color); }
+#compare-btn:disabled { background-color: #888; cursor: not-allowed; }
 
 .diff-display-grid {
     display: grid;
@@ -145,37 +137,75 @@ textarea {
 .diff-line {
     display: flex;
     line-height: 1.5;
-    padding: 0 5px;
 }
 
 .line-num {
     display: inline-block;
     width: 40px;
     text-align: right;
-    padding-right: 10px;
+    padding: 0 10px 0 5px;
     color: var(--line-num-color);
     user-select: none;
     background-color: var(--result-bg);
     flex-shrink: 0;
 }
 
-.line-content .highlight {
-    background-color: var(--diff-removed-bg);
-    border-radius: 3px;
-    padding: 1px 0;
+/* --- LÓGICA FINAL E CORRETA PARA LINHAS DE INDENTAÇÃO --- */
+
+/* 1. O contêiner da linha agora desenha as linhas de indentação */
+.line-content {
+    flex-grow: 1;
+    --indent-line-color: rgba(0, 0, 0, 0.1);
+    background: repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent calc(2ch - 1px),
+        var(--indent-line-color) calc(2ch - 1px),
+        var(--indent-line-color) 2ch
+    );
+}
+body.dark-mode .line-content {
+    --indent-line-color: rgba(255, 255, 255, 0.08);
 }
 
-.diff-line.added .line-content .highlight {
+/* 2. O wrapper do texto tem um fundo OPaco que MASCARA as linhas de indentação */
+.text-wrapper {
+    display: inline-block;
+    width: 100%;
+    padding: 0 5px;
+}
+
+/* 3. Definimos a cor de fundo opaca para cada tipo de linha */
+.diff-line.context .text-wrapper {
+    background-color: var(--result-bg);
+}
+.diff-line.removed .text-wrapper {
+    background-color: var(--diff-removed-bg);
+}
+.diff-line.added .text-wrapper {
     background-color: var(--diff-added-bg);
 }
+/* O tipo 'empty' não precisa de regra, pois o fundo do painel já serve */
 
-body.dark-mode .line-content .highlight {
+
+/* Estilos de highlight para caracteres (permanecem os mesmos) */
+.text-wrapper .highlight {
+    background-color: rgba(255, 0, 0, 0.2); /* Fundo sutil para o highlight */
+    border-radius: 3px;
+}
+.diff-line.added .text-wrapper .highlight {
+    background-color: rgba(0, 255, 0, 0.2);
+}
+body.dark-mode .text-wrapper .highlight {
     background-color: #7f1f1f;
 }
-
-body.dark-mode .diff-line.added .line-content .highlight {
+body.dark-mode .diff-line.added .text-wrapper .highlight {
     background-color: #125324;
 }
+
+
+/* --- Fim da lógica de indentação --- */
+
 
 .diff-summary {
     display: flex;
@@ -188,20 +218,11 @@ body.dark-mode .diff-line.added .line-content .highlight {
     margin-bottom: 10px;
     font-size: 0.9em;
     font-weight: bold;
-    transition: background-color 0.3s, border-color 0.3s;
 }
 
-.summary-removals {
-    color: var(--diff-removed-text);
-}
-
-.summary-additions {
-    color: var(--diff-added-text);
-}
-
-.summary-lines-total {
-    color: var(--line-num-color);
-}
+.summary-removals { color: var(--diff-removed-text); }
+.summary-additions { color: var(--diff-added-text); }
+.summary-lines-total { color: var(--line-num-color); }
 
 .copy-button {
     background-color: var(--primary-color);
@@ -210,12 +231,8 @@ body.dark-mode .diff-line.added .line-content .highlight {
     border-radius: 3px;
     cursor: pointer;
     font-size: 0.8em;
-    transition: background-color 0.2s;
 }
-
-.copy-button:hover {
-    background-color: var(--primary-hover-color);
-}
+.copy-button:hover { background-color: var(--primary-hover-color); }
 
 footer {
     text-align: center;
@@ -224,15 +241,8 @@ footer {
     border-top: 1px solid var(--border-color);
     color: #888;
 }
-
-footer a {
-    color: var(--primary-color);
-    text-decoration: none;
-}
-
-footer a:hover {
-    text-decoration: underline;
-}
+footer a { color: var(--primary-color); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
 
 #theme-toggle {
     background: none;
@@ -243,81 +253,10 @@ footer a:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s;
 }
-
-#theme-toggle:hover {
-    background-color: var(--border-color);
-}
-
-#theme-toggle svg {
-    color: var(--text-color);
-}
-
-body.dark-mode #sun-icon {
-    display: block;
-}
-
-body.dark-mode #moon-icon {
-    display: none;
-}
-
-body:not(.dark-mode) #sun-icon {
-    display: none;
-}
-
-body:not(.dark-mode) #moon-icon {
-    display: block;
-}
-
-
-/* --- LÓGICA FINAL E CORRETA PARA LINHAS DE INDENTAÇÃO --- */
-
-.line-content {
-    flex-grow: 1;
-    padding-left: 5px;
-    position: relative; /* Mantido por segurança, embora não seja estritamente necessário nesta abordagem */
-}
-
-/* Linhas de contexto (sem fundo colorido) */
-.diff-line.context .line-content {
-    --indent-line-color: rgba(0, 0, 0, 0.1);
-    background: repeating-linear-gradient(
-        to right,
-        transparent,
-        transparent calc(2ch - 1px),
-        var(--indent-line-color) calc(2ch - 1px),
-        var(--indent-line-color) 2ch
-    );
-    background-position-x: 5px; /* Alinha com o padding-left */
-}
-body.dark-mode .diff-line.context .line-content {
-    --indent-line-color: rgba(255, 255, 255, 0.08);
-}
-
-/* Linhas com fundo (adicionadas/removidas) */
-.diff-line.removed .line-content,
-.diff-line.added .line-content {
-    background-color: var(--diff-removed-bg); /* Cor base para a linha */
-}
-.diff-line.added .line-content {
-    background-color: var(--diff-added-bg);
-}
-
-/* Sobrepõe a cor de fundo com as linhas de indentação */
-.diff-line.removed .line-content,
-.diff-line.added .line-content {
-    --indent-line-color: rgba(0, 0, 0, 0.15);
-    background-image: repeating-linear-gradient(
-        to right,
-        transparent,
-        transparent calc(2ch - 1px),
-        var(--indent-line-color) calc(2ch - 1px),
-        var(--indent-line-color) 2ch
-    );
-    background-position-x: 5px;
-}
-body.dark-mode .diff-line.removed .line-content,
-body.dark-mode .diff-line.added .line-content {
-    --indent-line-color: rgba(255, 255, 255, 0.1);
-}
+#theme-toggle:hover { background-color: var(--border-color); }
+#theme-toggle svg { color: var(--text-color); }
+body.dark-mode #sun-icon { display: block; }
+body.dark-mode #moon-icon { display: none; }
+body:not(.dark-mode) #sun-icon { display: none; }
+body:not(.dark-mode) #moon-icon { display: block; }
