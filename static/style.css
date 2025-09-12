@@ -9,11 +9,11 @@
     --result-bg: #e9ecef;
 
     --diff-context-color: var(--text-color);
-    --diff-removed-bg: #ffeef0; /* Cor de fundo para removido */
-    --diff-removed-text: #bd2c00; /* Cor do texto para removido */
-    --diff-added-bg: #e6ffed;   /* Cor de fundo para adicionado */
-    --diff-added-text: #28a745; /* Cor do texto para adicionado */
-    --line-num-color: #6a737d; /* Cor dos números de linha */
+    --diff-removed-bg: #ffeef0;
+    --diff-removed-text: #bd2c00;
+    --diff-added-bg: #e6ffed;
+    --diff-added-text: #28a745;
+    --line-num-color: #6a737d;
     --diff-summary-bg: #f6f8fa;
 }
 
@@ -28,11 +28,11 @@ body.dark-mode {
     --result-bg: #2a2a2a;
 
     --diff-context-color: #e0e0e0;
-    --diff-removed-bg: #381216; /* Cor de fundo para removido no dark mode */
-    --diff-removed-text: #ff8c8c; /* Cor do texto para removido no dark mode */
-    --diff-added-bg: #1c3425;   /* Cor de fundo para adicionado no dark mode */
-    --diff-added-text: #7bc98e; /* Cor do texto para adicionado no dark mode */
-    --line-num-color: #8b949e; /* Cor dos números de linha no dark mode */
+    --diff-removed-bg: #381216;
+    --diff-removed-text: #ff8c8c;
+    --diff-added-bg: #1c3425;
+    --diff-added-text: #7bc98e;
+    --line-num-color: #8b949e;
     --diff-summary-bg: #161b22;
 }
 
@@ -81,7 +81,7 @@ header h1 {
 
 textarea {
     width: 100%;
-    height: 30vh; /* Ajuste para ter espaço para o resultado */
+    height: 30vh;
     padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: 5px;
@@ -113,19 +113,19 @@ textarea {
 #compare-btn:hover {
     background-color: var(--primary-hover-color);
 }
+
 #compare-btn:disabled {
     background-color: #888;
     cursor: not-allowed;
 }
 
-/* Novo estilo para o display de diff lado a lado */
 .diff-display-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1px; /* Linha divisória fina */
+    gap: 1px;
     border: 1px solid var(--border-color);
     border-radius: 5px;
-    overflow: hidden; /* Garante que os cantos arredondados funcionem */
+    overflow: hidden;
     font-family: "Courier New", Courier, monospace;
     font-size: 14px;
     min-height: 200px;
@@ -135,52 +135,48 @@ textarea {
 .diff-output-pane {
     background-color: var(--result-bg);
     color: var(--diff-context-color);
-    padding: 0; /* Remove padding padrão para controlar com a linha */
-    white-space: pre-wrap; /* Preserva quebras de linha */
+    padding: 0;
+    white-space: pre-wrap;
     word-wrap: break-word;
-    height: auto; /* Altura ajusta ao conteúdo */
-    overflow-y: auto; /* Scroll individual se necessário */
+    height: auto;
+    overflow-y: auto;
 }
 
-/* Estilos para cada linha do diff */
 .diff-line {
     display: flex;
     line-height: 1.5;
-    padding: 0 5px; /* Padding horizontal para o conteúdo da linha */
+    padding: 0 5px;
 }
 
 .line-num {
     display: inline-block;
-    width: 40px; /* Largura fixa para números de linha */
+    width: 40px;
     text-align: right;
     padding-right: 10px;
     color: var(--line-num-color);
-    user-select: none; /* Não selecionável */
-    background-color: var(--result-bg); /* Garante que o número de linha tenha o mesmo fundo */
-    flex-shrink: 0; /* Não permite que os números de linha diminuam */
+    user-select: none;
+    background-color: var(--result-bg);
+    flex-shrink: 0;
 }
 
-.line-content {
-    flex-grow: 1; /* Ocupa o espaço restante */
-    padding-left: 5px;
-    /* Adiciona um background sutil para linhas removidas/adicionadas */
-}
-
-.diff-line.removed .line-content {
+.line-content .highlight {
     background-color: var(--diff-removed-bg);
-    color: var(--diff-removed-text);
+    border-radius: 3px;
+    padding: 1px 0;
 }
 
-.diff-line.added .line-content {
+.diff-line.added .line-content .highlight {
     background-color: var(--diff-added-bg);
-    color: var(--diff-added-text);
 }
 
-.diff-line.context .line-content {
-    /* Background padrão, sem cor especial para linhas de contexto */
+body.dark-mode .line-content .highlight {
+    background-color: #7f1f1f;
 }
 
-/* Estilos para o resumo das diferenças no topo */
+body.dark-mode .diff-line.added .line-content .highlight {
+    background-color: #125324;
+}
+
 .diff-summary {
     display: flex;
     justify-content: space-between;
@@ -216,11 +212,11 @@ textarea {
     font-size: 0.8em;
     transition: background-color 0.2s;
 }
+
 .copy-button:hover {
     background-color: var(--primary-hover-color);
 }
 
-/* Footer */
 footer {
     text-align: center;
     margin-top: 40px;
@@ -228,15 +224,16 @@ footer {
     border-top: 1px solid var(--border-color);
     color: #888;
 }
+
 footer a {
     color: var(--primary-color);
     text-decoration: none;
 }
+
 footer a:hover {
     text-decoration: underline;
 }
 
-/* NOVOS ESTILOS PARA O BOTÃO DE TEMA COM ÍCONES */
 #theme-toggle {
     background: none;
     border: none;
@@ -248,17 +245,19 @@ footer a:hover {
     justify-content: center;
     transition: background-color 0.2s;
 }
+
 #theme-toggle:hover {
     background-color: var(--border-color);
 }
+
 #theme-toggle svg {
     color: var(--text-color);
 }
 
-/* LÓGICA PARA MOSTRAR/ESCONDER OS ÍCONES */
 body.dark-mode #sun-icon {
-    display: block; /* Mostra o sol no tema escuro (para mudar para claro) */
+    display: block;
 }
+
 body.dark-mode #moon-icon {
     display: none;
 }
@@ -266,66 +265,59 @@ body.dark-mode #moon-icon {
 body:not(.dark-mode) #sun-icon {
     display: none;
 }
+
 body:not(.dark-mode) #moon-icon {
-    display: block; /* Mostra a lua no tema claro (para mudar para escuro) */
+    display: block;
 }
 
-/* NOVO: Estilo para o highlight de caracteres dentro de uma linha */
-.line-content .highlight {
-    background-color: var(--diff-removed-bg); /* Usa um fundo mais escuro ou diferente */
-    border-radius: 3px;
-    padding: 1px 0;
-}
 
-/* O highlight dentro de uma linha adicionada deve ter a cor de adição */
-.diff-line.added .line-content .highlight {
-    background-color: var(--diff-added-bg);
-}
-
-/* Ajustando as cores para o modo escuro para melhor contraste */
-body.dark-mode .line-content .highlight {
-    background-color: #7f1f1f; /* Vermelho mais escuro */
-}
-
-body.dark-mode .diff-line.added .line-content .highlight {
-    background-color: #125324; /* Verde mais escuro */
-}
-
-/* --- NOVA E CORRIGIDA LÓGICA PARA LINHAS DE INDENTAÇÃO --- */
+/* --- LÓGICA FINAL E CORRETA PARA LINHAS DE INDENTAÇÃO --- */
 
 .line-content {
     flex-grow: 1;
-    padding-left: 5px; /* Padding base */
-    position: relative; /* Essencial para o posicionamento do pseudo-elemento */
+    padding-left: 5px;
+    position: relative; /* Mantido por segurança, embora não seja estritamente necessário nesta abordagem */
 }
 
-/* O pseudo-elemento ::before será usado para desenhar as linhas */
-.line-content::before {
-    content: ''; /* Pseudo-elementos precisam de 'content' para serem renderizados */
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%; /* Ocupa toda a largura do espaço de conteúdo */
-    height: 100%; /* Ocupa toda a altura */
-    pointer-events: none; /* Garante que as linhas não interfiram com a seleção de texto */
-
-    /* Variáveis para controle */
-    --indent-spacing: 20px; /* Espaçamento entre as linhas (ajuste se necessário) */
-    --indent-line-color: rgba(128, 128, 128, 0.25); /* Cor das linhas */
-
-    /* O truque: usamos box-shadow para criar múltiplas linhas verticais.
-       Cada linha é uma sombra interna (inset) de 1px de largura. */
-    box-shadow: 
-        inset var(--indent-spacing) 0 0 0 var(--indent-line-color),
-        inset calc(var(--indent-spacing) * 2) 0 0 0 var(--indent-line-color),
-        inset calc(var(--indent-spacing) * 3) 0 0 0 var(--indent-line-color),
-        inset calc(var(--indent-spacing) * 4) 0 0 0 var(--indent-line-color),
-        inset calc(var(--indent-spacing) * 5) 0 0 0 var(--indent-line-color),
-        inset calc(var(--indent-spacing) * 6) 0 0 0 var(--indent-line-color);
-        /* Adicione mais linhas se precisar de mais níveis de indentação */
+/* Linhas de contexto (sem fundo colorido) */
+.diff-line.context .line-content {
+    --indent-line-color: rgba(0, 0, 0, 0.1);
+    background: repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent calc(2ch - 1px),
+        var(--indent-line-color) calc(2ch - 1px),
+        var(--indent-line-color) 2ch
+    );
+    background-position-x: 5px; /* Alinha com o padding-left */
+}
+body.dark-mode .diff-line.context .line-content {
+    --indent-line-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Ajuste da cor da linha para o modo escuro */
-body.dark-mode .line-content::before {
-    --indent-line-color: rgba(200, 200, 200, 0.12);
+/* Linhas com fundo (adicionadas/removidas) */
+.diff-line.removed .line-content,
+.diff-line.added .line-content {
+    background-color: var(--diff-removed-bg); /* Cor base para a linha */
+}
+.diff-line.added .line-content {
+    background-color: var(--diff-added-bg);
+}
+
+/* Sobrepõe a cor de fundo com as linhas de indentação */
+.diff-line.removed .line-content,
+.diff-line.added .line-content {
+    --indent-line-color: rgba(0, 0, 0, 0.15);
+    background-image: repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent calc(2ch - 1px),
+        var(--indent-line-color) calc(2ch - 1px),
+        var(--indent-line-color) 2ch
+    );
+    background-position-x: 5px;
+}
+body.dark-mode .diff-line.removed .line-content,
+body.dark-mode .diff-line.added .line-content {
+    --indent-line-color: rgba(255, 255, 255, 0.1);
 }
