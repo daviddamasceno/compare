@@ -13,7 +13,6 @@ def highlight_intra_line_diff(old_line, new_line):
     """
     matcher = difflib.SequenceMatcher(None, old_line, new_line)
     
-    # Escapa caracteres HTML para evitar problemas de renderização
     def escape(s):
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -25,7 +24,7 @@ def highlight_intra_line_diff(old_line, new_line):
         if tag == 'equal':
             old_html += old_fragment
             new_html += new_fragment
-        else: # 'replace', 'delete', 'insert' são tratados como highlight
+        else:
             if old_fragment:
                 old_html += f'<span class="highlight">{old_fragment}</span>'
             if new_fragment:
@@ -61,11 +60,16 @@ def compare_api():
         # A lógica para JSON permanece a mesma
         original_json = json.loads(original_content)
         altered_json = json.loads(altered_content)
-        # ... (código para diff de JSON)
+        diff = DeepDiff(original_json, altered_json, view='text', verbose_level=2)
+        result_data['diff_type'] = "JSON/Objeto"
+        if diff:
+            result_data['diff_lines_original'] = [{'content': str(diff), 'type': 'none', 'line_num': 1}]
+        else:
+            result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
+        result_data['summary'] = {'removals': 0, 'additions': 0}
         return jsonify(result_data)
 
     except json.JSONDecodeError:
-        # --- ALGORITMO DE COMPARAÇÃO DE TEXTO CORRIGIDO E REFINADO ---
         original_lines = original_content.splitlines()
         altered_lines = altered_content.splitlines()
 
@@ -75,13 +79,13 @@ def compare_api():
         removals, additions = 0, 0
 
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-            # A nova estrutura if/elif garante que cada bloco seja tratado apenas uma vez.
             if tag == 'equal':
                 for i in range(i1, i2):
                     o_line_num += 1
                     a_line_num += 1
-                    result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'context', 'line_num': o_line_num})
-                    result_data['diff_lines_altered'].append({'content': altered_lines[j1 + (i - i1)], 'type': 'context', 'line_num': a_line_num})
+                    line_content = original_lines[i]
+                    result_data['diff_lines_original'].append({'content': line_content, 'type': 'context', 'line_num': o_line_num})
+                    result_data['diff_lines_altered'].append({'content': line_content, 'type': 'context', 'line_num': a_line_num})
             
             elif tag == 'delete':
                 for i in range(i1, i2):
@@ -98,29 +102,30 @@ def compare_api():
                     result_data['diff_lines_altered'].append({'content': altered_lines[j], 'type': 'added', 'line_num': a_line_num})
 
             elif tag == 'replace':
-                # Este bloco agora lida exclusivamente com substituições.
                 old_block = original_lines[i1:i2]
                 new_block = altered_lines[j1:j2]
                 
+                # --- LÓGICA DE ALINHAMENTO CORRIGIDA ---
                 for old_line, new_line in zip_longest(old_block, new_block):
-                    if old_line is not None:
-                        o_line_num += 1
-                        removals += 1
-                    if new_line is not None:
-                        a_line_num += 1
-                        additions += 1
-                    
                     if old_line is not None and new_line is not None:
                         # Par de linhas alteradas -> aplicar diff intra-linha
+                        o_line_num += 1
+                        a_line_num += 1
+                        removals += 1
+                        additions += 1
                         highlighted_old, highlighted_new = highlight_intra_line_diff(old_line, new_line)
                         result_data['diff_lines_original'].append({'content': highlighted_old, 'type': 'removed', 'line_num': o_line_num})
                         result_data['diff_lines_altered'].append({'content': highlighted_new, 'type': 'added', 'line_num': a_line_num})
                     elif old_line is not None:
-                        # Apenas linha antiga (deleção no final de um bloco de replace)
+                        # Apenas linha antiga (deleção) -> Adiciona placeholder no lado direito
+                        o_line_num += 1
+                        removals += 1
                         result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': o_line_num})
                         result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
                     elif new_line is not None:
-                        # Apenas linha nova (adição no final de um bloco de replace)
+                        # Apenas linha nova (adição) -> Adiciona placeholder no lado esquerdo
+                        a_line_num += 1
+                        additions += 1
                         result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
                         result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': a_line_num})
 
