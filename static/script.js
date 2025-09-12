@@ -7,66 +7,87 @@ document.addEventListener('DOMContentLoaded', () => {
     const diffSummary = document.querySelector('.diff-summary');
     const removalsCount = document.getElementById('removals-count');
     const additionsCount = document.getElementById('additions-count');
+    const changesCount = document.getElementById('changes-count');
     const linesOriginalCount = document.getElementById('lines-original-count');
     const linesAlteredCount = document.getElementById('lines-altered-count');
     const copyOriginalBtn = document.getElementById('copy-original-btn');
     const copyAlteredBtn = document.getElementById('copy-altered-btn');
     const themeToggleBtn = document.getElementById('theme-toggle');
 
-    // Função para renderizar o diff lado a lado
+    function createLineElement(line) {
+        const lineDiv = document.createElement('div');
+        lineDiv.classList.add('diff-line', line.type);
+        
+        const lineNumSpan = document.createElement('span');
+        lineNumSpan.className = 'line-num';
+        lineNumSpan.textContent = line.line_num;
+
+        const lineContentSpan = document.createElement('span');
+        lineContentSpan.className = 'line-content';
+        
+        const content = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
+        lineContentSpan.innerHTML = `<span class="text-wrapper">${content}</span>`;
+
+        lineDiv.appendChild(lineNumSpan);
+        lineDiv.appendChild(lineContentSpan);
+        return lineDiv;
+    }
+
     function renderDiff(diffData) {
         diffOriginalOutput.innerHTML = '';
         diffAlteredOutput.innerHTML = '';
         diffSummary.style.display = 'flex';
 
-        function createLineElement(line) {
-            const lineDiv = document.createElement('div');
-            lineDiv.classList.add('diff-line', line.type);
-            
-            const lineNumSpan = document.createElement('span');
-            lineNumSpan.className = 'line-num';
-            lineNumSpan.textContent = line.line_num;
+        // Se não for um diff de texto, o resultado é um bloco único
+        if (diffData.diff_type !== "Texto") {
+            const line = diffData.diff_lines_original[0] || { content: 'Aguardando comparação...', type: 'context', line_num: '' };
+            const preElement = document.createElement('pre');
+            preElement.textContent = line.content; // Usar textContent para segurança
+            diffOriginalOutput.appendChild(preElement);
+            diffAlteredOutput.innerHTML = '';
+        } else {
+            // Lógica existente para diff de texto side-by-side
+            diffData.diff_lines_original.forEach(line => {
+                diffOriginalOutput.appendChild(createLineElement(line));
+            });
 
-            const lineContentSpan = document.createElement('span');
-            lineContentSpan.className = 'line-content';
-            
-            // ATUALIZAÇÃO: Envolve o conteúdo em um span para a máscara de fundo
-            const content = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
-            lineContentSpan.innerHTML = `<span class="text-wrapper">${content}</span>`;
+            diffData.diff_lines_altered.forEach(line => {
+                diffAlteredOutput.appendChild(createLineElement(line));
+            });
+        }
+        
+        // Atualizar resumo, tratando valores nulos ou indefinidos
+        const summary = diffData.summary || {};
+        const removals = summary.removals ?? 0;
+        const additions = summary.additions ?? 0;
+        const changes = summary.changes ?? 0;
 
-            lineDiv.appendChild(lineNumSpan);
-            lineDiv.appendChild(lineContentSpan);
-            return lineDiv;
+        removalsCount.textContent = `${removals} remoções`;
+        additionsCount.textContent = `${additions} adições`;
+        
+        if (changes > 0) {
+            changesCount.textContent = `${changes} alterações`;
+            changesCount.style.display = 'inline';
+        } else {
+            changesCount.style.display = 'none';
         }
 
-        diffData.diff_lines_original.forEach(line => {
-            diffOriginalOutput.appendChild(createLineElement(line));
-        });
-
-        diffData.diff_lines_altered.forEach(line => {
-            diffAlteredOutput.appendChild(createLineElement(line));
-        });
-
-        // Atualizar resumo
-        if (diffData.diff_type === "JSON/Objeto") {
-             removalsCount.textContent = ``;
-             additionsCount.textContent = ``;
-             linesOriginalCount.textContent = 'JSON Diff';
-             linesAlteredCount.textContent = '';
+        if (diffData.diff_type === "Texto") {
+            linesOriginalCount.textContent = `${summary.total_lines_original} linhas`;
+            linesAlteredCount.textContent = `${summary.total_lines_altered} linhas`;
+            linesOriginalCount.style.display = 'inline';
+            linesAlteredCount.style.display = 'inline';
         } else {
-            removalsCount.textContent = `${diffData.summary.removals} remoções`;
-            additionsCount.textContent = `${diffData.summary.additions} adições`;
-            linesOriginalCount.textContent = `${diffData.summary.total_lines_original} linhas`;
-            linesAlteredCount.textContent = `${diffData.summary.total_lines_altered} linhas`;
+            linesOriginalCount.style.display = 'none';
+            linesAlteredCount.style.display = 'none';
         }
     }
 
-    // Função para chamar a API de comparação
     async function findDifference() {
         compareBtn.disabled = true;
-        diffOriginalOutput.innerHTML = '<div class="diff-line context"><span class="line-num"></span><span class="line-content">Comparando...</span></div>';
-        diffAlteredOutput.innerHTML = '<div class="diff-line context"><span class="line-num"></span><span class="line-content">Comparando...</span></div>';
         diffSummary.style.display = 'none';
+        diffOriginalOutput.innerHTML = '<div class="diff-line context"><span class="line-content">Comparando...</span></div>';
+        diffAlteredOutput.innerHTML = '';
 
         try {
             const response = await fetch('/api/compare', {
@@ -88,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderDiff(result);
 
         } catch (error) {
-            diffOriginalOutput.innerHTML = `<div class="diff-line removed"><span class="line-num"></span><span class="line-content">Ocorreu um erro: ${error.message}</span></div>`;
+            diffOriginalOutput.innerHTML = `<div class="diff-line removed"><span class="line-content">Ocorreu um erro: ${error.message}</span></div>`;
             diffAlteredOutput.innerHTML = '';
             diffSummary.style.display = 'none';
         } finally {
@@ -98,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     compareBtn.addEventListener('click', findDifference);
 
-    // Lógica para o tema escuro/claro
     const currentTheme = localStorage.getItem('theme');
     if (currentTheme) {
         document.body.classList.add(currentTheme);
@@ -112,10 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('theme', theme);
     });
 
-    // Função de copiar para a área de transferência
     function copyToClipboard(element) {
-        const textToCopy = element.value;
-        navigator.clipboard.writeText(textToCopy).then(() => {
+        navigator.clipboard.writeText(element.value).then(() => {
             alert('Conteúdo copiado para a área de transferência!');
         }).catch(err => {
             console.error('Falha ao copiar:', err);

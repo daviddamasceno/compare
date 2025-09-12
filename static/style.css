@@ -133,6 +133,10 @@ textarea {
     height: auto;
     overflow-y: auto;
 }
+.diff-output-pane pre {
+    margin: 0;
+    padding: 10px;
+}
 
 .diff-line {
     display: flex;
@@ -154,11 +158,10 @@ textarea {
     flex-shrink: 0;
 }
 
-/* --- LÓGICA FINAL E DEFINITIVA PARA LINHAS DE INDENTAÇÃO (CSS) --- */
 .line-content {
     flex-grow: 1;
     position: relative;
-    padding-left: 5px; /* Deixa um pequeno espaço inicial */
+    padding-left: 5px;
 }
 
 .line-content::before {
@@ -167,13 +170,9 @@ textarea {
     top: 0;
     left: 0;
     height: 100%;
-    
     width: 120px; 
     pointer-events: none;
-    
     --indent-line-color: rgba(0, 0, 0, 0.15);
-    
-    /* CORREÇÃO: O gradiente agora tem a posição inicial calculada */
     background: repeating-linear-gradient(
         to right,
         transparent 0,
@@ -181,15 +180,12 @@ textarea {
         var(--indent-line-color) 2ch,
         var(--indent-line-color) calc(2ch + 1px)
     );
-    background-size: 2ch 100%; /* O tamanho do padrão é 2ch */
-    
-    /* A posição começa no padding, garantindo que não cruze o texto */
+    background-size: 2ch 100%;
     background-position-x: 5px;
 }
 body.dark-mode .line-content::before {
     --indent-line-color: rgba(255, 255, 255, 0.1);
 }
-/* --- FIM DA LÓGICA DE INDENTAÇÃO --- */
 
 .text-wrapper .highlight {
     border-radius: 3px;
@@ -221,6 +217,15 @@ body.dark-mode .diff-line.added .text-wrapper .highlight {
 .summary-removals { color: var(--diff-removed-text); }
 .summary-additions { color: var(--diff-added-text); }
 .summary-lines-total { color: var(--line-num-color); }
+
+.summary-changes {
+    color: #f0ad4e;
+    margin: 0 15px;
+}
+
+.summary-spacer {
+    flex-grow: 1;
+}
 
 .copy-button {
     background-color: var(--primary-color);

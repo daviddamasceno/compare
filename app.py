@@ -3,14 +3,12 @@ from flask import Flask, render_template, request, jsonify
 import difflib
 from deepdiff import DeepDiff
 from itertools import zip_longest
+from jproperties import Properties # Nova importação
 
 app = Flask(__name__)
 
+# A função highlight_intra_line_diff permanece a mesma
 def highlight_intra_line_diff(old_line, new_line):
-    """
-    Compara duas strings e retorna strings HTML com as diferenças de
-    caracteres/palavras destacadas dentro de um <span class="highlight">.
-    """
     matcher = difflib.SequenceMatcher(None, old_line, new_line)
     
     def escape(s):
@@ -34,13 +32,11 @@ def highlight_intra_line_diff(old_line, new_line):
 
 @app.route('/')
 def index():
-    """ Rota principal que serve a página web (frontend). """
     try:
         with open('VERSION', 'r') as f:
             app_version = f.read().strip()
     except FileNotFoundError:
         app_version = "N/A"
-        
     return render_template('index.html', app_version=app_version)
 
 @app.route('/api/compare', methods=['POST'])
@@ -53,121 +49,108 @@ def compare_api():
         'diff_lines_original': [],
         'diff_lines_altered': [],
         'diff_type': "Texto",
-        'summary': {}
+        'summary': {'removals': 0, 'additions': 0, 'changes': 0}
     }
 
+    # --- NOVA LÓGICA DE DETECÇÃO AUTOMÁTICA ---
+
+    # 1. TENTAR COMO JSON
     try:
-        # A lógica para JSON permanece a mesma
-        original_json = json.loads(original_content)
-        altered_json = json.loads(altered_content)
-        diff = DeepDiff(original_json, altered_json, view='text', verbose_level=2)
-        result_data['diff_type'] = "JSON/Objeto"
+        original_obj = json.loads(original_content)
+        altered_obj = json.loads(altered_content)
+        result_data['diff_type'] = "JSON"
+        
+        diff = DeepDiff(original_obj, altered_obj, view='text')
         if diff:
-            result_data['diff_lines_original'] = [{'content': str(diff), 'type': 'none', 'line_num': 1}]
+            result_data['diff_lines_original'] = [{'content': str(diff), 'type': 'context', 'line_num': 1}]
+            # Preenche o summary com dados do DeepDiff
+            summary = {
+                'removals': len(diff.get('dictionary_item_removed', [])),
+                'additions': len(diff.get('dictionary_item_added', [])),
+                'changes': len(diff.get('values_changed', []))
+            }
+            result_data['summary'] = summary
         else:
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-        result_data['summary'] = {'removals': 0, 'additions': 0}
+        
         return jsonify(result_data)
 
-    except json.JSONDecodeError:
-        original_lines = original_content.splitlines()
-        altered_lines = altered_content.splitlines()
+    except (json.JSONDecodeError, TypeError):
+        # Se não for JSON, continua para a próxima tentativa
+        pass
 
-        matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
+    # 2. TENTAR COMO PROPRIEDADES JAVA
+    try:
+        # A biblioteca jproperties funciona com objetos 'file-like', então usamos StringIO
+        from io import StringIO
         
-        o_line_num, a_line_num = 0, 0
-        removals, additions = 0, 0
+        p_original = Properties()
+        p_original.load(StringIO(original_content))
+        
+        p_altered = Properties()
+        p_altered.load(StringIO(altered_content))
 
-        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-            if tag == 'equal':
-                for i in range(i1, i2):
-                    o_line_num += 1
-                    a_line_num += 1
-<<<<<<< HEAD
-                    line = original_lines[i]
-                    result_data['diff_lines_original'].append({'content': line, 'type': 'context', 'line_num': o_line_num})
-                    result_data['diff_lines_altered'].append({'content': line, 'type': 'context', 'line_num': a_line_num})
-=======
-                    line_content = original_lines[i]
-                    result_data['diff_lines_original'].append({'content': line_content, 'type': 'context', 'line_num': o_line_num})
-                    result_data['diff_lines_altered'].append({'content': line_content, 'type': 'context', 'line_num': a_line_num})
->>>>>>> parent of a30574b (Correcao de alinhamento)
-            
-            elif tag == 'delete':
-                for i in range(i1, i2):
-                    o_line_num += 1
-                    removals += 1
-                    result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'removed', 'line_num': o_line_num})
+        # DeepDiff funciona perfeitamente com os objetos Properties
+        diff = DeepDiff(p_original.properties, p_altered.properties, view='text')
+        result_data['diff_type'] = "Java Properties"
+
+        if diff:
+            result_data['diff_lines_original'] = [{'content': str(diff), 'type': 'context', 'line_num': 1}]
+            summary = {
+                'removals': len(diff.get('dictionary_item_removed', [])),
+                'additions': len(diff.get('dictionary_item_added', [])),
+                'changes': len(diff.get('values_changed', []))
+            }
+            result_data['summary'] = summary
+        else:
+            result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
+
+        return jsonify(result_data)
+        
+    except Exception:
+        # Se falhar como properties, continua para o fallback final
+        pass
+    
+    # 3. FALLBACK PARA TEXTO SIMPLES (LÓGICA ANTERIOR)
+    result_data['diff_type'] = "Texto"
+    original_lines = original_content.splitlines()
+    altered_lines = altered_content.splitlines()
+    matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
+    # ... (toda a lógica de diff de texto que já tínhamos)
+    o_line_num, a_line_num, removals, additions = 0, 0, 0, 0
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            # ...
+            for i in range(i1, i2):
+                o_line_num += 1; a_line_num += 1
+                line = original_lines[i]
+                result_data['diff_lines_original'].append({'content': line, 'type': 'context', 'line_num': o_line_num})
+                result_data['diff_lines_altered'].append({'content': line, 'type': 'context', 'line_num': a_line_num})
+        else:
+            old_block = original_lines[i1:i2]
+            new_block = altered_lines[j1:j2]
+            for old_line, new_line in zip_longest(old_block, new_block):
+                if old_line is not None: o_line_num += 1; removals += 1
+                if new_line is not None: a_line_num += 1; additions += 1
+                if old_line is not None and new_line is not None:
+                    h_old, h_new = highlight_intra_line_diff(old_line, new_line)
+                    result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': o_line_num})
+                    result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': a_line_num})
+                elif old_line is not None:
+                    result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': o_line_num})
                     result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-
-            elif tag == 'insert':
-                for j in range(j1, j2):
-                    a_line_num += 1
-                    additions += 1
+                elif new_line is not None:
                     result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                    result_data['diff_lines_altered'].append({'content': altered_lines[j], 'type': 'added', 'line_num': a_line_num})
+                    result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': a_line_num})
 
-            elif tag == 'replace':
-                old_block = original_lines[i1:i2]
-                new_block = altered_lines[j1:j2]
-                
-                # --- LÓGICA DE ALINHAMENTO CORRIGIDA ---
-                for old_line, new_line in zip_longest(old_block, new_block):
-<<<<<<< HEAD
-                    # --- LÓGICA DE CONTAGEM DE LINHAS CORRIGIDA ---
-                    current_o_num = ''
-                    if old_line is not None:
-                        o_line_num += 1
-                        removals += 1
-                        current_o_num = o_line_num
-                    
-                    current_a_num = ''
-                    if new_line is not None:
-                        a_line_num += 1
-                        additions += 1
-                        current_a_num = a_line_num
-                    
-                    if old_line is not None and new_line is not None:
-                        h_old, h_new = highlight_intra_line_diff(old_line, new_line)
-                        result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': current_o_num})
-                        result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': current_a_num})
-                    elif old_line is not None:
-                        result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': current_o_num})
-=======
-                    if old_line is not None and new_line is not None:
-                        # Par de linhas alteradas -> aplicar diff intra-linha
-                        o_line_num += 1
-                        a_line_num += 1
-                        removals += 1
-                        additions += 1
-                        highlighted_old, highlighted_new = highlight_intra_line_diff(old_line, new_line)
-                        result_data['diff_lines_original'].append({'content': highlighted_old, 'type': 'removed', 'line_num': o_line_num})
-                        result_data['diff_lines_altered'].append({'content': highlighted_new, 'type': 'added', 'line_num': a_line_num})
-                    elif old_line is not None:
-                        # Apenas linha antiga (deleção) -> Adiciona placeholder no lado direito
-                        o_line_num += 1
-                        removals += 1
-                        result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': o_line_num})
->>>>>>> parent of a30574b (Correcao de alinhamento)
-                        result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                    elif new_line is not None:
-                        # Apenas linha nova (adição) -> Adiciona placeholder no lado esquerdo
-                        a_line_num += 1
-                        additions += 1
-                        result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                        result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
-
-        if not original_content and not altered_content:
-            result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
-
-        result_data['summary'] = {
-            'removals': removals,
-            'additions': additions,
-            'total_lines_original': len(original_lines),
-            'total_lines_altered': len(altered_lines)
-        }
-        
-        return jsonify(result_data)
+    if not original_content and not altered_content:
+        result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
+    result_data['summary'] = {
+        'removals': removals, 'additions': additions, 'changes': 0,
+        'total_lines_original': len(original_lines),
+        'total_lines_altered': len(altered_lines)
+    }
+    return jsonify(result_data)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
