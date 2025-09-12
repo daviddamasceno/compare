@@ -290,3 +290,46 @@ body.dark-mode .line-content .highlight {
 body.dark-mode .diff-line.added .line-content .highlight {
     background-color: #125324; /* Verde mais escuro */
 }
+
+/* NOVO: Estilos para as linhas de indentação */
+.line-content {
+    flex-grow: 1;
+    padding-left: 5px;
+    position: relative; /* Necessário para posicionar as linhas de indentação */
+    
+    /* Configuração padrão para as linhas de indentação */
+    --indent-line-color: rgba(128, 128, 128, 0.1); /* Cor cinza clara, bem translúcida */
+    --indent-spacing: 20px; /* Espaçamento entre as linhas */
+    
+    /* Cria um background com degradês lineares para simular as linhas */
+    background-image: 
+        repeating-linear-gradient(
+            to right, 
+            var(--indent-line-color) 0px, 
+            var(--indent-line-color) 1px, 
+            transparent 1px, 
+            transparent var(--indent-spacing)
+        );
+    background-size: var(--indent-spacing) 100%; /* Ajusta o tamanho do padrão */
+    background-position-x: calc(var(--indent-spacing) - 1px); /* Ajusta a posição para iniciar a partir da primeira indentação real */
+}
+
+/* Ajustes para o modo escuro */
+body.dark-mode .line-content {
+    --indent-line-color: rgba(200, 200, 200, 0.08); /* Mais sutil no dark mode */
+}
+
+/* Opcional: ajustar background-color para o conteúdo das linhas destacadas
+   para que as linhas de indentação fiquem visíveis por trás. */
+.diff-line.removed .line-content {
+    background-color: var(--diff-removed-bg); /* Já existente */
+    background-blend-mode: multiply; /* Tenta misturar o background-image com a cor de fundo */
+    /* Se multiply não funcionar bem em todos os navegadores, pode ser necessário
+       ajustar as cores de var(--diff-removed-bg) e var(--diff-added-bg)
+       para serem um pouco mais transparentes por si só, e remover background-blend-mode. */
+}
+
+.diff-line.added .line-content {
+    background-color: var(--diff-added-bg); /* Já existente */
+    background-blend-mode: multiply; /* Tenta misturar o background-image com a cor de fundo */
+}
