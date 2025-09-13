@@ -144,16 +144,17 @@ textarea {
     display: flex;
     line-height: 1.5;
     background-color: transparent;
+    /* --- CORREÇÃO APLICADA AQUI --- */
+    min-height: 21px; /* Força uma altura mínima para a linha (14px * 1.5) */
+    align-items: stretch; /* Garante que os filhos estiquem para a altura total */
 }
 
 .diff-line.removed { background-color: var(--diff-removed-bg); }
 .diff-line.added { background-color: var(--diff-added-bg); }
 
-
 .line-num {
     display: inline-block;
-    /* --- CORREÇÃO APLICADA AQUI --- */
-    width: 55px; /* Aumentado de 40px para 55px para caber 3+ dígitos e padding */
+    width: 55px;
     text-align: right;
     padding: 0 10px 0 5px;
     color: var(--line-num-color);
