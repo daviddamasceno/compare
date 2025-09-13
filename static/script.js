@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (declaração de constantes, sem alterações)
+    // --- Declaração de Constantes ---
     const originalTextarea = document.getElementById('original-text');
     const alteredTextarea = document.getElementById('altered-text');
     const compareBtn = document.getElementById('compare-btn');
@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyAlteredBtn = document.getElementById('copy-altered-btn');
     const themeToggleBtn = document.getElementById('theme-toggle');
 
+    // --- Funções de Renderização ---
     function createLineElement(line) {
-        // ... (função sem alterações)
         const lineDiv = document.createElement('div');
         lineDiv.classList.add('diff-line', line.type);
         const lineNumSpan = document.createElement('span');
@@ -38,19 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
         diffAlteredOutput.innerHTML = '';
         diffSummary.style.display = 'flex';
 
-        // --- LÓGICA DE RENDERIZAÇÃO CORRIGIDA ---
-        // Agora, tanto 'Texto' quanto 'Java Properties' usam o side-by-side
         if (diffData.diff_type === "Texto" || diffData.diff_type === "Java Properties") {
             diffDisplayGrid.style.gridTemplateColumns = '1fr 1fr';
-            
-            diffData.diff_lines_original.forEach(line => {
-                diffOriginalOutput.appendChild(createLineElement(line));
-            });
-
-            diffData.diff_lines_altered.forEach(line => {
-                diffAlteredOutput.appendChild(createLineElement(line));
-            });
-        } else { // Apenas JSON usará o painel único
+            diffData.diff_lines_original.forEach(line => { diffOriginalOutput.appendChild(createLineElement(line)); });
+            diffData.diff_lines_altered.forEach(line => { diffAlteredOutput.appendChild(createLineElement(line)); });
+        } else { 
             diffDisplayGrid.style.gridTemplateColumns = '1fr';
             const line = diffData.diff_lines_original[0] || { content: 'Nenhuma diferença encontrada.' };
             const preElement = document.createElement('pre');
@@ -59,12 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
             diffAlteredOutput.innerHTML = '';
         }
         
-        // --- ATUALIZAÇÃO DO SUMÁRIO ---
         const summary = diffData.summary || {};
         const removals = summary.removals ?? 0;
         const additions = summary.additions ?? 0;
         const changes = summary.changes ?? 0;
-
         removalsCount.textContent = `${removals} remoções`;
         additionsCount.textContent = `${additions} adições`;
         
@@ -75,10 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
             changesCount.style.display = 'none';
         }
 
-        // Mostra a contagem de linhas para Properties também
         if (diffData.diff_type === "Texto" || diffData.diff_type === "Java Properties") {
-            const totalOriginal = diffData.diff_type === "Texto" ? summary.total_lines_original : removals + changes;
-            const totalAltered = diffData.diff_type === "Texto" ? summary.total_lines_altered : additions + changes;
+            const totalOriginal = (removals + (summary.total_lines_original - removals)) || 0;
+            const totalAltered = (additions + (summary.total_lines_altered - additions)) || 0;
             linesOriginalCount.textContent = `${totalOriginal} linhas`;
             linesAlteredCount.textContent = `${totalAltered} linhas`;
             linesOriginalCount.style.display = 'inline';
@@ -89,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ... (Resto do arquivo JS sem alterações)
+    // --- Função Principal e Lógica de Eventos ---
     async function findDifference() {
         compareBtn.disabled = true;
         diffSummary.style.display = 'none';
@@ -118,16 +107,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     compareBtn.addEventListener('click', findDifference);
+
     const currentTheme = localStorage.getItem('theme');
     if (currentTheme) { document.body.classList.add(currentTheme); } 
     else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.body.classList.add('dark-mode');
     }
+
     themeToggleBtn.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
         let theme = document.body.classList.contains('dark-mode') ? 'dark-mode' : '';
         localStorage.setItem('theme', theme);
     });
+
     function copyToClipboard(element) {
         navigator.clipboard.writeText(element.value)
             .then(() => alert('Conteúdo copiado para a área de transferência!'))
@@ -135,4 +127,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     copyOriginalBtn.addEventListener('click', () => copyToClipboard(originalTextarea));
     copyAlteredBtn.addEventListener('click', () => copyToClipboard(alteredTextarea));
+    
+
+    // --- NOVA SEÇÃO: LÓGICA DE SCROLL SINCRONIZADO ---
+    let isSyncing = false; // Variável de controle para evitar loops infinitos
+
+    function syncScroll(source, target) {
+        // Se a flag 'isSyncing' estiver ativa, significa que este evento de scroll
+        // foi causado por outro evento de scroll, então o ignoramos.
+        if (isSyncing) {
+            isSyncing = false; // Reseta a flag para o próximo scroll do usuário
+            return;
+        }
+
+        // Ativa a flag para indicar que estamos sincronizando programaticamente
+        isSyncing = true;
+        // Iguala a posição de scroll do alvo com a do painel de origem
+        target.scrollTop = source.scrollTop;
+    }
+
+    // Adiciona o "ouvinte" de eventos para os dois painéis
+    diffOriginalOutput.addEventListener('scroll', () => syncScroll(diffOriginalOutput, diffAlteredOutput));
+    diffAlteredOutput.addEventListener('scroll', () => syncScroll(diffAlteredOutput, diffOriginalOutput));
+
 });
