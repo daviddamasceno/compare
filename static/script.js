@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (declaração de constantes no topo, sem alterações)
     const originalTextarea = document.getElementById('original-text');
     const alteredTextarea = document.getElementById('altered-text');
     const compareBtn = document.getElementById('compare-btn');
-    const diffDisplayGrid = document.querySelector('.diff-display-grid'); // Adiciona a grid
+    const propertiesSwitch = document.getElementById('properties-switch');
+    const diffDisplayGrid = document.querySelector('.diff-display-grid');
     const diffOriginalOutput = document.getElementById('diff-original-output');
     const diffAlteredOutput = document.getElementById('diff-altered-output');
     const diffSummary = document.querySelector('.diff-summary');
@@ -17,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleBtn = document.getElementById('theme-toggle');
 
     function createLineElement(line) {
-        // ... (função sem alterações)
         const lineDiv = document.createElement('div');
         lineDiv.classList.add('diff-line', line.type);
         const lineNumSpan = document.createElement('span');
@@ -36,29 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
         diffOriginalOutput.innerHTML = '';
         diffAlteredOutput.innerHTML = '';
         diffSummary.style.display = 'flex';
-
         if (diffData.diff_type === "Texto") {
-            // Garante o layout de duas colunas para texto
             diffDisplayGrid.style.gridTemplateColumns = '1fr 1fr';
-            
-            diffData.diff_lines_original.forEach(line => {
-                diffOriginalOutput.appendChild(createLineElement(line));
-            });
-            diffData.diff_lines_altered.forEach(line => {
-                diffAlteredOutput.appendChild(createLineElement(line));
-            });
+            diffData.diff_lines_original.forEach(line => { diffOriginalOutput.appendChild(createLineElement(line)); });
+            diffData.diff_lines_altered.forEach(line => { diffAlteredOutput.appendChild(createLineElement(line)); });
         } else {
-            // Força o layout de uma coluna para JSON/Properties
             diffDisplayGrid.style.gridTemplateColumns = '1fr';
-            
             const line = diffData.diff_lines_original[0] || { content: 'Nenhuma diferença encontrada.' };
             const preElement = document.createElement('pre');
             preElement.textContent = line.content;
             diffOriginalOutput.appendChild(preElement);
-            diffAlteredOutput.innerHTML = ''; // Garante que o painel direito está vazio
+            diffAlteredOutput.innerHTML = '';
         }
-        
-        // ... (lógica de atualização do sumário, sem alterações)
         const summary = diffData.summary || {};
         const removals = summary.removals ?? 0;
         const additions = summary.additions ?? 0;
@@ -81,13 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
             linesAlteredCount.style.display = 'none';
         }
     }
-    
-    // ... (resto do arquivo, com a função findDifference e os event listeners, sem alterações)
+
     async function findDifference() {
         compareBtn.disabled = true;
         diffSummary.style.display = 'none';
         diffOriginalOutput.innerHTML = '<div class="diff-line context"><span class="line-content">Comparando...</span></div>';
         diffAlteredOutput.innerHTML = '';
+
+        const isProperties = propertiesSwitch.checked;
 
         try {
             const response = await fetch('/api/compare', {
@@ -95,17 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     original: originalTextarea.value,
-                    altered: alteredTextarea.value
+                    altered: alteredTextarea.value,
+                    is_properties: isProperties
                 }),
             });
-
-            if (!response.ok) {
-                throw new Error(`Erro na API: ${response.statusText}`);
-            }
-
+            if (!response.ok) { throw new Error(`Erro na API: ${response.statusText}`); }
             const result = await response.json();
             renderDiff(result);
-
         } catch (error) {
             diffOriginalOutput.innerHTML = `<div class="diff-line removed"><span class="line-content">Ocorreu um erro: ${error.message}</span></div>`;
             diffAlteredOutput.innerHTML = '';
