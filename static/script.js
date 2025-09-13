@@ -65,15 +65,21 @@ document.addEventListener('DOMContentLoaded', () => {
             changesCount.style.display = 'none';
         }
 
-        if (diffData.diff_type === "Texto" || diffData.diff_type === "Java Properties") {
-            const totalOriginal = (removals + (summary.total_lines_original - removals)) || 0;
-            const totalAltered = (additions + (summary.total_lines_altered - additions)) || 0;
-            linesOriginalCount.textContent = `${totalOriginal} linhas`;
-            linesAlteredCount.textContent = `${totalAltered} linhas`;
+        if (diffData.diff_type === "Texto") {
+            linesOriginalCount.textContent = `${summary.total_lines_original} linhas`;
+            linesAlteredCount.textContent = `${summary.total_lines_altered} linhas`;
             linesOriginalCount.style.display = 'inline';
             linesAlteredCount.style.display = 'inline';
         } else {
-            linesOriginalCount.style.display = 'none';
+             // Para Properties, a contagem de linhas é o total de chaves únicas
+            const totalLines = Math.max(
+                (summary.removals ?? 0) + (summary.additions ?? 0) + (summary.changes ?? 0),
+                diffData.diff_lines_original.filter(l => l.type !== 'empty').length,
+                diffData.diff_lines_altered.filter(l => l.type !== 'empty').length
+            );
+            linesOriginalCount.textContent = `${totalLines} chaves`;
+            linesAlteredCount.textContent = ``;
+            linesOriginalCount.style.display = 'inline';
             linesAlteredCount.style.display = 'none';
         }
     }
@@ -128,26 +134,16 @@ document.addEventListener('DOMContentLoaded', () => {
     copyOriginalBtn.addEventListener('click', () => copyToClipboard(originalTextarea));
     copyAlteredBtn.addEventListener('click', () => copyToClipboard(alteredTextarea));
     
-
-    // --- NOVA SEÇÃO: LÓGICA DE SCROLL SINCRONIZADO ---
-    let isSyncing = false; // Variável de controle para evitar loops infinitos
-
+    // --- LÓGICA DE SCROLL SINCRONIZADO ---
+    let isSyncing = false;
     function syncScroll(source, target) {
-        // Se a flag 'isSyncing' estiver ativa, significa que este evento de scroll
-        // foi causado por outro evento de scroll, então o ignoramos.
         if (isSyncing) {
-            isSyncing = false; // Reseta a flag para o próximo scroll do usuário
+            isSyncing = false;
             return;
         }
-
-        // Ativa a flag para indicar que estamos sincronizando programaticamente
         isSyncing = true;
-        // Iguala a posição de scroll do alvo com a do painel de origem
         target.scrollTop = source.scrollTop;
     }
-
-    // Adiciona o "ouvinte" de eventos para os dois painéis
     diffOriginalOutput.addEventListener('scroll', () => syncScroll(diffOriginalOutput, diffAlteredOutput));
     diffAlteredOutput.addEventListener('scroll', () => syncScroll(diffAlteredOutput, diffOriginalOutput));
-
 });
