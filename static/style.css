@@ -152,7 +152,8 @@ textarea {
 
 .line-num {
     display: inline-block;
-    width: 40px;
+    /* --- CORREÇÃO APLICADA AQUI --- */
+    width: 55px; /* Aumentado de 40px para 55px para caber 3+ dígitos e padding */
     text-align: right;
     padding: 0 10px 0 5px;
     color: var(--line-num-color);
