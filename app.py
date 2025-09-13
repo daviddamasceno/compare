@@ -67,13 +67,12 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        # ... (lógica para properties, que já está correta, sem alterações)
+        # --- LÓGICA EXCLUSIVA PARA PROPERTIES ---
         logging.info("Comparação de 'Properties' solicitada. Focando apenas nas diferenças.")
         try:
-            def normalize_properties_text(text): return re.sub(r'\n\s*(?![\w.#])', r'\\n', text)
             p_original, p_altered = Properties(), Properties()
-            p_original.load(BytesIO(normalize_properties_text(original_content).encode('utf-8')))
-            p_altered.load(BytesIO(normalize_properties_text(altered_content).encode('utf-8')))
+            p_original.load(BytesIO(original_content.encode('utf-8')))
+            p_altered.load(BytesIO(altered_content.encode('utf-8')))
             original_dict, altered_dict = p_original.properties, p_altered.properties
             removals, additions, changes = 0, 0, 0
             all_keys = sorted(list(set(original_dict.keys()) | set(altered_dict.keys())))
@@ -103,19 +102,14 @@ def compare_api():
             return jsonify(result_data)
         except Exception as e:
             logging.error(f"Falha ao analisar como Properties: {e}", exc_info=True)
-            error_result = {'diff_lines_original': [{'content': f"Erro ao analisar o arquivo como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
+            error_result = {'diff_lines_original': [{'content': f"Erro ao analisar como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
             return jsonify(error_result), 400
     
-    else: # --- FLUXO PADRÃO (JSON -> TEXTO) CORRIGIDO ---
+    else: # --- FLUXO PADRÃO (JSON OU TEXTO) ---
         try:
             logging.info("Tentando analisar entradas como JSON...")
-            original_obj = json.loads(original_content)
-            altered_obj = json.loads(altered_content)
-            # Se a análise JSON for bem-sucedida, mas o resultado for apenas strings,
-            # é melhor tratar como texto simples para uma visualização mais útil.
-            if isinstance(original_obj, str) and isinstance(altered_obj, str):
-                raise TypeError("JSON resultou em strings, tratando como texto.")
-            
+            original_obj, altered_obj = json.loads(original_content), json.loads(altered_content)
+            if isinstance(original_obj, str) and isinstance(altered_obj, str): raise TypeError("JSON resultou em strings, tratando como texto.")
             result_data['diff_type'] = "JSON"
             diff = DeepDiff(original_obj, altered_obj)
             if diff:
@@ -125,14 +119,12 @@ def compare_api():
             else:
                 logging.info("Análise JSON bem-sucedida. Nenhuma diferença encontrada.")
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-            return jsonify(result_data)
         except Exception:
             logging.info("Não é JSON válido ou foi forçado para texto. Recorrendo à comparação de texto simples.")
-            original_lines = original_content.splitlines()
-            altered_lines = altered_content.splitlines()
+            result_data['diff_type'] = "Texto" # Garante que o tipo está correto
+            original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
             matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
             o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
-            
             for tag, i1, i2, j1, j2 in matcher.get_opcodes():
                 if tag == 'equal':
                     for i in range(i1, i2):
@@ -156,12 +148,12 @@ def compare_api():
                         elif new_line is not None:
                             result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
                             result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
-            
             if not original_content and not altered_content:
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
             result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes, 'total_lines_original': len(original_lines), 'total_lines_altered': len(altered_lines)}
             logging.info(f"Diff de texto concluído: {removals} remoções, {additions} adições, {changes} alterações.")
-            return jsonify(result_data)
+        
+        return jsonify(result_data)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)

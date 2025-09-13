@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Declaração de Constantes ---
+    // ... (declaração de constantes, sem alterações)
     const originalTextarea = document.getElementById('original-text');
     const alteredTextarea = document.getElementById('altered-text');
     const compareBtn = document.getElementById('compare-btn');
@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyAlteredBtn = document.getElementById('copy-altered-btn');
     const themeToggleBtn = document.getElementById('theme-toggle');
 
-    // --- Funções de Renderização ---
     function createLineElement(line) {
+        // ... (função sem alterações)
         const lineDiv = document.createElement('div');
         lineDiv.classList.add('diff-line', line.type);
         const lineNumSpan = document.createElement('span');
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             linesOriginalCount.style.display = 'inline';
             linesAlteredCount.style.display = 'inline';
         } else if (diffData.diff_type === "Java Properties") {
-            const totalKeys = diffData.diff_lines_original.filter(l => l.type !== 'empty' || l.content !== '').length;
+            const totalKeys = diffData.diff_lines_original.filter(l => l.type !== 'empty').length;
             linesOriginalCount.textContent = `${totalKeys} chaves`;
             linesAlteredCount.textContent = ``;
             linesOriginalCount.style.display = 'inline';
