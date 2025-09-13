@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ... (declaração de constantes no topo, sem alterações)
     const originalTextarea = document.getElementById('original-text');
     const alteredTextarea = document.getElementById('altered-text');
     const compareBtn = document.getElementById('compare-btn');
+    const diffDisplayGrid = document.querySelector('.diff-display-grid'); // Adiciona a grid
     const diffOriginalOutput = document.getElementById('diff-original-output');
     const diffAlteredOutput = document.getElementById('diff-altered-output');
     const diffSummary = document.querySelector('.diff-summary');
@@ -15,67 +17,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleBtn = document.getElementById('theme-toggle');
 
     function createLineElement(line) {
+        // ... (função sem alterações)
         const lineDiv = document.createElement('div');
         lineDiv.classList.add('diff-line', line.type);
-        
         const lineNumSpan = document.createElement('span');
         lineNumSpan.className = 'line-num';
         lineNumSpan.textContent = line.line_num;
-
         const lineContentSpan = document.createElement('span');
         lineContentSpan.className = 'line-content';
-        
         const content = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
-        // O wrapper é necessário para a lógica de indentação no CSS
         lineContentSpan.innerHTML = `<span class="text-wrapper">${content}</span>`;
-
         lineDiv.appendChild(lineNumSpan);
         lineDiv.appendChild(lineContentSpan);
         return lineDiv;
     }
 
-    // --- FUNÇÃO renderDiff COMPLETAMENTE CORRIGIDA ---
     function renderDiff(diffData) {
         diffOriginalOutput.innerHTML = '';
         diffAlteredOutput.innerHTML = '';
         diffSummary.style.display = 'flex';
 
-        // LÓGICA CORRETA: Verifica o tipo de diff para decidir como renderizar
         if (diffData.diff_type === "Texto") {
-            // Se for texto, renderiza lado a lado (side-by-side)
+            // Garante o layout de duas colunas para texto
+            diffDisplayGrid.style.gridTemplateColumns = '1fr 1fr';
+            
             diffData.diff_lines_original.forEach(line => {
                 diffOriginalOutput.appendChild(createLineElement(line));
             });
-
             diffData.diff_lines_altered.forEach(line => {
                 diffAlteredOutput.appendChild(createLineElement(line));
             });
         } else {
-            // Se for JSON ou Properties, renderiza o resultado em um painel único
-            const line = diffData.diff_lines_original[0] || { content: 'Nenhuma diferença encontrada.', type: 'context' };
+            // Força o layout de uma coluna para JSON/Properties
+            diffDisplayGrid.style.gridTemplateColumns = '1fr';
+            
+            const line = diffData.diff_lines_original[0] || { content: 'Nenhuma diferença encontrada.' };
             const preElement = document.createElement('pre');
             preElement.textContent = line.content;
             diffOriginalOutput.appendChild(preElement);
-            // Garante que o painel direito fique vazio
-            diffAlteredOutput.innerHTML = '';
+            diffAlteredOutput.innerHTML = ''; // Garante que o painel direito está vazio
         }
         
-        // Lógica para atualizar o sumário (já estava correta)
+        // ... (lógica de atualização do sumário, sem alterações)
         const summary = diffData.summary || {};
         const removals = summary.removals ?? 0;
         const additions = summary.additions ?? 0;
         const changes = summary.changes ?? 0;
-
         removalsCount.textContent = `${removals} remoções`;
         additionsCount.textContent = `${additions} adições`;
-        
         if (changes > 0) {
             changesCount.textContent = `${changes} alterações`;
             changesCount.style.display = 'inline';
         } else {
             changesCount.style.display = 'none';
         }
-
         if (diffData.diff_type === "Texto") {
             linesOriginalCount.textContent = `${summary.total_lines_original} linhas`;
             linesAlteredCount.textContent = `${summary.total_lines_altered} linhas`;
@@ -86,7 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
             linesAlteredCount.style.display = 'none';
         }
     }
-
+    
+    // ... (resto do arquivo, com a função findDifference e os event listeners, sem alterações)
     async function findDifference() {
         compareBtn.disabled = true;
         diffSummary.style.display = 'none';
@@ -120,26 +116,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     compareBtn.addEventListener('click', findDifference);
-
-    // Lógica de tema e copiar (sem alterações)
     const currentTheme = localStorage.getItem('theme');
     if (currentTheme) { document.body.classList.add(currentTheme); } 
     else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.body.classList.add('dark-mode');
     }
-
     themeToggleBtn.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
         let theme = document.body.classList.contains('dark-mode') ? 'dark-mode' : '';
         localStorage.setItem('theme', theme);
     });
-
     function copyToClipboard(element) {
         navigator.clipboard.writeText(element.value)
             .then(() => alert('Conteúdo copiado para a área de transferência!'))
             .catch(err => console.error('Falha ao copiar:', err));
     }
-
     copyOriginalBtn.addEventListener('click', () => copyToClipboard(originalTextarea));
     copyAlteredBtn.addEventListener('click', () => copyToClipboard(alteredTextarea));
 });

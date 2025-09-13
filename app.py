@@ -6,7 +6,7 @@ import difflib
 from deepdiff import DeepDiff
 from itertools import zip_longest
 from jproperties import Properties
-from io import StringIO
+from io import BytesIO # IMPORTANTE: Usaremos BytesIO em vez de StringIO
 
 # --- CONFIGURAÇÃO DOS LOGS ---
 logging.basicConfig(
@@ -17,50 +17,46 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-# --- FUNÇÃO format_deepdiff REESCRITA E CORRIGIDA ---
+# --- FUNÇÃO format_deepdiff COM LOGS ADICIONAIS ---
 def format_deepdiff(diff):
-    """Converte um objeto DeepDiff em uma string legível para humanos."""
+    logging.info("Iniciando a formatação do resultado do DeepDiff.")
     report_lines = []
     
-    # Mapeia os tipos de mudança para textos amigáveis
     change_types = {
         'dictionary_item_added': "Chave Adicionada",
         'dictionary_item_removed': "Chave Removida",
         'values_changed': "Valor Alterado",
         'type_changes': "Tipo Alterado",
-        'iterable_item_added': "Item Adicionado",
-        'iterable_item_removed': "Item Removido",
     }
 
-    # Agora iteramos corretamente sobre o objeto diff
     for change_type, friendly_name in change_types.items():
         if change_type in diff:
             report_lines.append(f"--- {friendly_name} ---")
-            # O valor é uma lista de caminhos (ou um dicionário para 'values_changed')
             items = diff[change_type]
-            if isinstance(items, dict): # 'values_changed' e 'type_changes' são dicionários
+            if isinstance(items, dict):
                 for path, change in items.items():
                     report_lines.append(f"Em '{path}': de '{change['old_value']}' para '{change['new_value']}'")
-            else: # Os outros são listas
+            else:
                 for path in items:
                     report_lines.append(str(path))
             report_lines.append("")
 
     if not report_lines:
+        logging.info("Nenhuma diferença formatável encontrada no DeepDiff.")
         return "Nenhuma diferença encontrada."
-        
-    return "\n".join(report_lines)
+    
+    formatted_report = "\n".join(report_lines)
+    logging.info(f"Relatório formatado gerado com {len(report_lines)} linhas.")
+    return formatted_report
 
 def highlight_intra_line_diff(old_line, new_line):
     # ... (função sem alterações)
     matcher = difflib.SequenceMatcher(None, old_line, new_line)
-    def escape(s):
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    def escape(s): return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     old_html, new_html = '', ''
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         old_fragment, new_fragment = escape(old_line[i1:i2]), escape(new_line[j1:j2])
-        if tag == 'equal':
-            old_html, new_html = old_html + old_fragment, new_html + new_fragment
+        if tag == 'equal': old_html += old_fragment; new_html += new_fragment
         else:
             if old_fragment: old_html += f'<span class="highlight">{old_fragment}</span>'
             if new_fragment: new_html += f'<span class="highlight">{new_fragment}</span>'
@@ -69,10 +65,8 @@ def highlight_intra_line_diff(old_line, new_line):
 @app.route('/')
 def index():
     try:
-        with open('VERSION', 'r') as f:
-            app_version = f.read().strip()
-    except FileNotFoundError:
-        app_version = "N/A"
+        with open('VERSION', 'r') as f: app_version = f.read().strip()
+    except FileNotFoundError: app_version = "N/A"
     return render_template('index.html', app_version=app_version)
 
 @app.route('/api/compare', methods=['POST'])
@@ -81,54 +75,44 @@ def compare_api():
     data = request.json
     original_content = data.get('original', '')
     altered_content = data.get('altered', '')
-    
-    result_data = {
-        'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto",
-        'summary': {'removals': 0, 'additions': 0, 'changes': 0}
-    }
+    result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     # 1. TENTAR COMO JSON
     try:
         logging.info("Tentando analisar entradas como JSON...")
+        # ... (lógica JSON sem alterações)
         original_obj = json.loads(original_content)
         altered_obj = json.loads(altered_content)
         result_data['diff_type'] = "JSON"
-        
         diff = DeepDiff(original_obj, altered_obj)
         if diff:
             logging.info(f"Análise JSON bem-sucedida. Encontradas {len(diff)} categorias de diferenças.")
             result_data['diff_lines_original'] = [{'content': format_deepdiff(diff), 'type': 'context', 'line_num': 1}]
-            result_data['summary'] = {
-                'removals': len(diff.get('dictionary_item_removed', [])),
-                'additions': len(diff.get('dictionary_item_added', [])),
-                'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))
-            }
+            result_data['summary'] = {'removals': len(diff.get('dictionary_item_removed', [])), 'additions': len(diff.get('dictionary_item_added', [])), 'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))}
         else:
             logging.info("Análise JSON bem-sucedida. Nenhuma diferença encontrada.")
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-        
         return jsonify(result_data)
     except Exception as e:
-        logging.error(f"Falha ao analisar como JSON: {e}. Tentando como Properties...", exc_info=True)
+        logging.info(f"Falha ao analisar como JSON: {e}. Tentando como Properties...")
         pass
 
     # 2. TENTAR COMO PROPRIEDADES JAVA
     try:
         logging.info("Tentando analisar entradas como Java Properties...")
         p_original, p_altered = Properties(), Properties()
-        p_original.load(StringIO(original_content))
-        p_altered.load(StringIO(altered_content))
-
+        
+        # --- CORREÇÃO DO BUG str to bytes ---
+        # Codificamos a string para bytes e usamos BytesIO
+        p_original.load(BytesIO(original_content.encode('utf-8')))
+        p_altered.load(BytesIO(altered_content.encode('utf-8')))
+        
         diff = DeepDiff(p_original.properties, p_altered.properties)
         result_data['diff_type'] = "Java Properties"
         if diff:
             logging.info(f"Análise Properties bem-sucedida. Encontradas {len(diff)} categorias de diferenças.")
             result_data['diff_lines_original'] = [{'content': format_deepdiff(diff), 'type': 'context', 'line_num': 1}]
-            result_data['summary'] = {
-                'removals': len(diff.get('dictionary_item_removed', [])),
-                'additions': len(diff.get('dictionary_item_added', [])),
-                'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))
-            }
+            result_data['summary'] = {'removals': len(diff.get('dictionary_item_removed', [])), 'additions': len(diff.get('dictionary_item_added', [])), 'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))}
         else:
             logging.info("Análise Properties bem-sucedida. Nenhuma diferença encontrada.")
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
@@ -138,10 +122,9 @@ def compare_api():
         pass
     
     # 3. FALLBACK PARA TEXTO SIMPLES
-    # ... (lógica de diff de texto que já tínhamos, sem alterações) ...
+    # ... (lógica de diff de texto sem alterações)
     logging.info("Recorrendo à comparação de texto simples.")
-    original_lines = original_content.splitlines()
-    altered_lines = altered_content.splitlines()
+    original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
     matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
     o_line_num, a_line_num, removals, additions = 0, 0, 0, 0
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
@@ -169,10 +152,7 @@ def compare_api():
                     result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
     if not original_content and not altered_content:
         result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
-    result_data['summary'] = {
-        'removals': removals, 'additions': additions, 'changes': 0,
-        'total_lines_original': len(original_lines), 'total_lines_altered': len(altered_lines)
-    }
+    result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': 0, 'total_lines_original': len(original_lines), 'total_lines_altered': len(altered_lines)}
     logging.info(f"Diff de texto concluído: {removals} remoções, {additions} adições.")
     return jsonify(result_data)
 
