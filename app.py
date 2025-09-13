@@ -1,7 +1,7 @@
 import json
 import logging
+import re
 import sys
-import re # Módulo de expressões regulares importado
 from flask import Flask, render_template, request, jsonify
 import difflib
 from deepdiff import DeepDiff
@@ -82,71 +82,65 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        logging.info("Comparação de 'Properties' solicitada. Usando o analisador com normalização de múltiplas linhas.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o analisador com normalização.")
         try:
-            # --- NOVA FUNÇÃO DE NORMALIZAÇÃO ---
             def normalize_properties_text(text):
-                # Substitui quebras de linha que são parte de um valor pelo caractere literal "\\n"
                 return re.sub(r'\n\s*(?![\w.#])', r'\\n', text)
-
-            p_original, p_altered = Properties(), Properties()
             
-            # Carrega o conteúdo JÁ NORMALIZADO
+            p_original, p_altered = Properties(), Properties()
             p_original.load(BytesIO(normalize_properties_text(original_content).encode('utf-8')))
             p_altered.load(BytesIO(normalize_properties_text(altered_content).encode('utf-8')))
             
-            original_dict = p_original.properties
-            altered_dict = p_altered.properties
-            
-            original_keys = [k for k, v in p_original.items()]
-            altered_keys = [k for k, v in p_altered.items()]
-            
-            key_matcher = difflib.SequenceMatcher(None, original_keys, altered_keys)
-            o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
+            original_lines_formatted = [f"{k} = {v}" for k, v in sorted(p_original.properties.items())]
+            altered_lines_formatted = [f"{k} = {v}" for k, v in sorted(p_altered.properties.items())]
 
-            for tag, i1, i2, j1, j2 in key_matcher.get_opcodes():
+            matcher = difflib.SequenceMatcher(None, original_lines_formatted, altered_lines_formatted)
+            o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
+            
+            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
                 if tag == 'equal':
                     for i in range(i1, i2):
                         o_line_num += 1
                         a_line_num += 1
-                        key = original_keys[i]
-                        value = original_dict[key]
-                        result_data['diff_lines_original'].append({'content': f"{key} = {value}", 'type': 'context', 'line_num': o_line_num})
-                        result_data['diff_lines_altered'].append({'content': f"{key} = {value}", 'type': 'context', 'line_num': a_line_num})
+                        result_data['diff_lines_original'].append({'content': original_lines_formatted[i], 'type': 'context', 'line_num': o_line_num})
+                        result_data['diff_lines_altered'].append({'content': altered_lines_formatted[j1 + (i - i1)], 'type': 'context', 'line_num': a_line_num})
                 else:
-                    old_block_keys = original_keys[i1:i2]
-                    new_block_keys = altered_keys[j1:j2]
-                    for old_key, new_key in zip_longest(old_block_keys, new_block_keys):
-                        if old_key is not None:
+                    old_block, new_block = original_lines_formatted[i1:i2], altered_lines_formatted[j1:j2]
+                    for old_line, new_line in zip_longest(old_block, new_block):
+                        current_o_num, current_a_num = '', ''
+                        if old_line is not None:
                             o_line_num += 1
                             removals += 1
-                            result_data['diff_lines_original'].append({'content': f"{old_key} = {original_dict[old_key]}", 'type': 'removed', 'line_num': o_line_num})
-                        else:
-                            result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-
-                        if new_key is not None:
+                            current_o_num = o_line_num
+                        if new_line is not None:
                             a_line_num += 1
                             additions += 1
-                            result_data['diff_lines_altered'].append({'content': f"{new_key} = {altered_dict[new_key]}", 'type': 'added', 'line_num': a_line_num})
-                        else:
+                            current_a_num = a_line_num
+                        
+                        if old_line is not None and new_line is not None:
+                            changes += 1
+                            h_old, h_new = highlight_intra_line_diff(old_line, new_line)
+                            result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': current_o_num})
+                            result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': current_a_num})
+                        elif old_line is not None:
+                            result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': current_o_num})
                             result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                        elif new_line is not None:
+                            result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                            result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
             
-            for key in original_dict:
-                if key in altered_dict and original_dict[key] != altered_dict[key]:
-                    changes += 1
-
             result_data['diff_type'] = "Java Properties"
             result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes}
             
             if not removals and not additions and not changes:
                  result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
                  result_data['diff_lines_altered'] = []
-
             return jsonify(result_data)
         except Exception as e:
             logging.error(f"Falha ao analisar como Properties: {e}", exc_info=True)
             error_result = {'diff_lines_original': [{'content': f"Erro ao analisar o arquivo como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
             return jsonify(error_result), 400
+
     else: # FLUXO PADRÃO (JSON -> TEXTO)
         try:
             logging.info("Tentando analisar entradas como JSON...")
@@ -167,10 +161,11 @@ def compare_api():
             for tag, i1, i2, j1, j2 in matcher.get_opcodes():
                 if tag == 'equal':
                     for i in range(i1, i2):
-                        o_line_num += 1; a_line_num += 1
-                        line = original_lines[i]
-                        result_data['diff_lines_original'].append({'content': line, 'type': 'context', 'line_num': o_line_num})
-                        result_data['diff_lines_altered'].append({'content': line, 'type': 'context', 'line_num': a_line_num})
+                        o_line_num += 1
+                        a_line_num += 1
+                        # CORREÇÃO APLICADA AQUI
+                        result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'context', 'line_num': o_line_num})
+                        result_data['diff_lines_altered'].append({'content': altered_lines[j1 + (i - i1)], 'type': 'context', 'line_num': a_line_num})
                 else:
                     old_block, new_block = original_lines[i1:i2], altered_lines[j1:j2]
                     for old_line, new_line in zip_longest(old_block, new_block):
