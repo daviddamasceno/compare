@@ -82,18 +82,23 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        logging.info("Comparação de 'Properties' solicitada. Usando o analisador final de alinhamento por chave.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o analisador final de alinhamento por chave com normalização.")
         try:
+            # --- FUNÇÃO DE NORMALIZAÇÃO REINTRODUZIDA ---
+            def normalize_properties_text(text):
+                # Substitui quebras de linha que são parte de um valor (não precedidas por \) pelo literal "\\n"
+                return re.sub(r'(?<!\\)\n', r'\\n', text)
+
             p_original, p_altered = Properties(), Properties()
-            p_original.load(BytesIO(original_content.encode('utf-8')))
-            p_altered.load(BytesIO(altered_content.encode('utf-8')))
+            # Pré-processa o texto ANTES de carregar
+            p_original.load(BytesIO(normalize_properties_text(original_content).encode('utf-8')))
+            p_altered.load(BytesIO(normalize_properties_text(altered_content).encode('utf-8')))
             
             original_dict = p_original.properties
             altered_dict = p_altered.properties
             
             removals, additions, changes = 0, 0, 0
             
-            # --- ALGORITMO FINAL DE ALINHAMENTO PERFEITO POR CHAVE ---
             all_keys = sorted(list(set(original_dict.keys()) | set(altered_dict.keys())))
             
             line_num = 0
@@ -102,24 +107,19 @@ def compare_api():
                 old_value = original_dict.get(key)
                 new_value = altered_dict.get(key)
 
-                # Caso 1: A chave existe em ambos os arquivos
                 if old_value is not None and new_value is not None:
-                    if old_value == new_value: # Contexto (sem alteração)
+                    if old_value == new_value:
                         result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'context', 'line_num': line_num})
                         result_data['diff_lines_altered'].append({'content': f"{key} = {new_value}", 'type': 'context', 'line_num': line_num})
-                    else: # Valor Alterado
+                    else:
                         changes += 1; removals += 1; additions += 1
                         highlighted_old, highlighted_new = highlight_intra_line_diff(old_value, new_value)
                         result_data['diff_lines_original'].append({'content': f"{key} = {highlighted_old}", 'type': 'removed', 'line_num': line_num})
                         result_data['diff_lines_altered'].append({'content': f"{key} = {highlighted_new}", 'type': 'added', 'line_num': line_num})
-                
-                # Caso 2: A chave só existe no arquivo original (Remoção)
                 elif old_value is not None:
                     removals += 1
                     result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'removed', 'line_num': line_num})
                     result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                
-                # Caso 3: A chave só existe no arquivo alterado (Adição)
                 elif new_value is not None:
                     additions += 1
                     result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
@@ -148,25 +148,23 @@ def compare_api():
             is_json = False
 
         if is_json:
+            # ... (lógica JSON sem alterações)
             logging.info("Entradas identificadas como JSON.")
             result_data['diff_type'] = "JSON"
             diff = DeepDiff(original_obj, altered_obj)
             if diff:
-                logging.info(f"Análise JSON bem-sucedida. Encontradas {len(diff)} categorias de diferenças.")
                 result_data['diff_lines_original'] = [{'content': format_deepdiff(diff), 'type': 'context', 'line_num': 1}]
                 result_data['summary'] = {'removals': len(diff.get('dictionary_item_removed', [])), 'additions': len(diff.get('dictionary_item_added', [])), 'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))}
             else:
-                logging.info("Análise JSON bem-sucedida. Nenhuma diferença encontrada.")
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
         
         else: # Se não for JSON, trata como texto simples
+            # ... (lógica de diff de texto sem alterações)
             logging.info("Recorrendo à comparação de texto simples.")
             result_data['diff_type'] = "Texto"
-            original_lines = original_content.splitlines()
-            altered_lines = altered_content.splitlines()
+            original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
             matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
             o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
-            
             for tag, i1, i2, j1, j2 in matcher.get_opcodes():
                 if tag == 'equal':
                     for i in range(i1, i2):
@@ -194,7 +192,6 @@ def compare_api():
             if not original_content and not altered_content:
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
             result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes, 'total_lines_original': len(original_lines), 'total_lines_altered': len(altered_lines)}
-            logging.info(f"Diff de texto concluído: {removals} remoções, {additions} adições, {changes} alterações.")
         
         return jsonify(result_data)
 
