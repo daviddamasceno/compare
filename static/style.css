@@ -214,13 +214,14 @@ body.dark-mode .diff-line.added .text-wrapper .highlight {
     font-weight: bold;
 }
 
-.summary-removals { color: var(--diff-removed-text); }
-.summary-additions { color: var(--diff-added-text); }
-.summary-lines-total { color: var(--line-num-color); }
+.summary-removals, 
+.summary-additions, 
+.summary-changes {
+    margin-right: 15px; /* Adiciona um espaçamento à direita de cada item */
+}
 
 .summary-changes {
     color: #f0ad4e;
-    margin: 0 15px;
 }
 
 .summary-spacer {
