@@ -3,14 +3,12 @@ import logging
 import sys
 from flask import Flask, render_template, request, jsonify
 import difflib
-from deepdiff import DeepDiff, Delta
+from deepdiff import DeepDiff
 from itertools import zip_longest
 from jproperties import Properties
 from io import StringIO
 
 # --- CONFIGURAÇÃO DOS LOGS ---
-# Configura o logger para imprimir no console (saída padrão do Docker)
-# com informações de data, hora, nível do log e a mensagem.
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.INFO,
@@ -19,7 +17,7 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-# --- NOVA FUNÇÃO PARA FORMATAR A SAÍDA DO DEEPDIFF ---
+# --- FUNÇÃO format_deepdiff REESCRITA E CORRIGIDA ---
 def format_deepdiff(diff):
     """Converte um objeto DeepDiff em uma string legível para humanos."""
     report_lines = []
@@ -34,15 +32,19 @@ def format_deepdiff(diff):
         'iterable_item_removed': "Item Removido",
     }
 
+    # Agora iteramos corretamente sobre o objeto diff
     for change_type, friendly_name in change_types.items():
         if change_type in diff:
             report_lines.append(f"--- {friendly_name} ---")
-            for item_path, change in diff[change_type].items():
-                if change_type == 'values_changed':
-                    report_lines.append(f"Em '{item_path}': de '{change['old_value']}' para '{change['new_value']}'")
-                else:
-                    report_lines.append(f"Em '{item_path}': {change}")
-            report_lines.append("") # Linha em branco para espaçamento
+            # O valor é uma lista de caminhos (ou um dicionário para 'values_changed')
+            items = diff[change_type]
+            if isinstance(items, dict): # 'values_changed' e 'type_changes' são dicionários
+                for path, change in items.items():
+                    report_lines.append(f"Em '{path}': de '{change['old_value']}' para '{change['new_value']}'")
+            else: # Os outros são listas
+                for path in items:
+                    report_lines.append(str(path))
+            report_lines.append("")
 
     if not report_lines:
         return "Nenhuma diferença encontrada."
@@ -107,7 +109,7 @@ def compare_api():
         
         return jsonify(result_data)
     except Exception as e:
-        logging.info(f"Falha ao analisar como JSON: {e}. Tentando como Properties...")
+        logging.error(f"Falha ao analisar como JSON: {e}. Tentando como Properties...", exc_info=True)
         pass
 
     # 2. TENTAR COMO PROPRIEDADES JAVA
@@ -132,17 +134,16 @@ def compare_api():
             result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
         return jsonify(result_data)
     except Exception as e:
-        logging.info(f"Falha ao analisar como Properties: {e}. Recorrendo ao diff de texto simples.")
+        logging.error(f"Falha ao analisar como Properties: {e}. Recorrendo ao diff de texto simples.", exc_info=True)
         pass
     
     # 3. FALLBACK PARA TEXTO SIMPLES
+    # ... (lógica de diff de texto que já tínhamos, sem alterações) ...
     logging.info("Recorrendo à comparação de texto simples.")
-    # ... (lógica de diff de texto que já tínhamos)
     original_lines = original_content.splitlines()
     altered_lines = altered_content.splitlines()
     matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
     o_line_num, a_line_num, removals, additions = 0, 0, 0, 0
-    # ... (o resto do código de diff de texto permanece o mesmo) ...
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == 'equal':
             for i in range(i1, i2):

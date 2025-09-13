@@ -201,10 +201,10 @@ body.dark-mode .diff-line.added .text-wrapper .highlight {
     background-color: #125324;
 }
 
+/* --- SEÇÃO DO SUMÁRIO CORRIGIDA --- */
 .diff-summary {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    align-items: center; /* Alinha verticalmente */
     background-color: var(--diff-summary-bg);
     border: 1px solid var(--border-color);
     border-radius: 5px;
@@ -214,19 +214,26 @@ body.dark-mode .diff-line.added .text-wrapper .highlight {
     font-weight: bold;
 }
 
-.summary-removals, 
-.summary-additions, 
-.summary-changes {
-    margin-right: 15px; /* Adiciona um espaçamento à direita de cada item */
+/* Agrupa os contadores à esquerda */
+.summary-stats {
+    display: flex;
+    gap: 15px; /* Espaçamento entre os contadores */
 }
 
-.summary-changes {
-    color: #f0ad4e;
+.summary-removals { color: var(--diff-removed-text); }
+.summary-additions { color: var(--diff-added-text); }
+.summary-changes { color: #f0ad4e; }
+
+/* Agrupa os botões e informações de linha à direita */
+.summary-actions {
+    display: flex;
+    margin-left: auto; /* Empurra este grupo para a direita */
+    align-items: center;
+    gap: 15px;
 }
 
-.summary-spacer {
-    flex-grow: 1;
-}
+.summary-lines-total { color: var(--line-num-color); }
+/* --- FIM DA CORREÇÃO DO SUMÁRIO --- */
 
 .copy-button {
     background-color: var(--primary-color);
