@@ -11,8 +11,9 @@ from io import BytesIO
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 app = Flask(__name__)
 
-# A função format_deepdiff agora será usada apenas para JSON
+# ... (funções format_deepdiff e highlight_intra_line_diff sem alterações) ...
 def format_deepdiff(diff):
+    # ...
     report_lines = []
     change_types = {'dictionary_item_added': "Chave Adicionada", 'dictionary_item_removed': "Chave Removida", 'values_changed': "Valor Alterado", 'type_changes': "Tipo Alterado"}
     for change_type, friendly_name in change_types.items():
@@ -28,7 +29,7 @@ def format_deepdiff(diff):
     return "\n".join(report_lines)
 
 def highlight_intra_line_diff(old_line, new_line):
-    # ... (função sem alterações)
+    # ...
     matcher = difflib.SequenceMatcher(None, old_line, new_line)
     def escape(s): return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     old_html, new_html = '', ''
@@ -58,7 +59,7 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        logging.info("Comparação de 'Properties' solicitada. Usando o novo analisador manual.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o analisador manual side-by-side.")
         try:
             p_original, p_altered = Properties(), Properties()
             p_original.load(BytesIO(original_content.encode('utf-8')))
@@ -67,59 +68,68 @@ def compare_api():
             original_dict = p_original.properties
             altered_dict = p_altered.properties
             
-            report_lines = []
             removals, additions, changes = 0, 0, 0
-
-            # --- NOVA LÓGICA DE COMPARAÇÃO MANUAL ---
             
-            # 1. Encontrar chaves removidas e valores alterados
-            for key, old_value in original_dict.items():
-                if key not in altered_dict:
-                    report_lines.append(f"--- Chave Removida ---\n{key} = {old_value}\n")
+            # --- NOVA LÓGICA SIDE-BY-SIDE PARA PROPERTIES ---
+            all_keys = sorted(list(set(original_dict.keys()) | set(altered_dict.keys())))
+            
+            line_num = 0
+            for key in all_keys:
+                line_num += 1
+                old_value = original_dict.get(key)
+                new_value = altered_dict.get(key)
+
+                if old_value is not None and new_value is not None:
+                    if old_value == new_value: # Contexto
+                        result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'context', 'line_num': line_num})
+                        result_data['diff_lines_altered'].append({'content': f"{key} = {new_value}", 'type': 'context', 'line_num': line_num})
+                    else: # Alterado
+                        changes += 1
+                        removals += 1 # Conta como remoção e adição
+                        additions += 1
+                        highlighted_old, highlighted_new = highlight_intra_line_diff(old_value, new_value)
+                        result_data['diff_lines_original'].append({'content': f"{key} = {highlighted_old}", 'type': 'removed', 'line_num': line_num})
+                        result_data['diff_lines_altered'].append({'content': f"{key} = {highlighted_new}", 'type': 'added', 'line_num': line_num})
+                elif old_value is not None: # Removido
                     removals += 1
-                elif old_value != altered_dict[key]:
-                    new_value = altered_dict[key]
-                    report_lines.append(f"--- Valor Alterado ---\nEm '{key}':\n- DE: {old_value}\n+ PARA: {new_value}\n")
-                    changes += 1
-
-            # 2. Encontrar chaves adicionadas
-            for key, new_value in altered_dict.items():
-                if key not in original_dict:
-                    report_lines.append(f"--- Chave Adicionada ---\n{key} = {new_value}\n")
+                    result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'removed', 'line_num': line_num})
+                    result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                elif new_value is not None: # Adicionado
                     additions += 1
-            
+                    result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                    result_data['diff_lines_altered'].append({'content': f"{key} = {new_value}", 'type': 'added', 'line_num': line_num})
+
             result_data['diff_type'] = "Java Properties"
-            
-            if not report_lines:
-                logging.info("Análise Properties manual bem-sucedida. Nenhuma diferença encontrada.")
-                result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
-            else:
-                logging.info(f"Análise Properties manual bem-sucedida. Encontradas {removals} remoções, {additions} adições, {changes} alterações.")
-                result_data['diff_lines_original'] = [{'content': "\n".join(report_lines), 'type': 'context', 'line_num': 1}]
-            
             result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes}
+            
+            if not removals and not additions and not changes:
+                 logging.info("Análise Properties manual bem-sucedida. Nenhuma diferença encontrada.")
+                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
+                 result_data['diff_lines_altered'] = []
+
             return jsonify(result_data)
 
         except Exception as e:
-            logging.error(f"Falha ao analisar como Properties (mesmo com o switch ativado): {e}", exc_info=True)
+            # ... (bloco de erro sem alterações)
+            logging.error(f"Falha ao analisar como Properties: {e}", exc_info=True)
             error_result = {'diff_lines_original': [{'content': f"Erro ao analisar o arquivo como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
             return jsonify(error_result), 400
     
     else: # FLUXO PADRÃO (JSON -> TEXTO)
         try:
+            # ... (lógica JSON sem alterações)
             logging.info("Tentando analisar entradas como JSON...")
             original_obj, altered_obj = json.loads(original_content), json.loads(altered_content)
             result_data['diff_type'] = "JSON"
             diff = DeepDiff(original_obj, altered_obj)
             if diff:
-                logging.info(f"Análise JSON bem-sucedida. Encontradas {len(diff)} categorias de diferenças.")
                 result_data['diff_lines_original'] = [{'content': format_deepdiff(diff), 'type': 'context', 'line_num': 1}]
                 result_data['summary'] = {'removals': len(diff.get('dictionary_item_removed', [])), 'additions': len(diff.get('dictionary_item_added', [])), 'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))}
             else:
-                logging.info("Análise JSON bem-sucedida. Nenhuma diferença encontrada.")
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
             return jsonify(result_data)
         except Exception:
+            # ... (lógica de diff de texto sem alterações)
             logging.info("Não é JSON. Recorrendo à comparação de texto simples.")
             original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
             matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)

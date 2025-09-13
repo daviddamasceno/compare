@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ... (declaração de constantes, sem alterações)
     const originalTextarea = document.getElementById('original-text');
     const alteredTextarea = document.getElementById('altered-text');
     const compareBtn = document.getElementById('compare-btn');
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggleBtn = document.getElementById('theme-toggle');
 
     function createLineElement(line) {
+        // ... (função sem alterações)
         const lineDiv = document.createElement('div');
         lineDiv.classList.add('diff-line', line.type);
         const lineNumSpan = document.createElement('span');
@@ -35,11 +37,20 @@ document.addEventListener('DOMContentLoaded', () => {
         diffOriginalOutput.innerHTML = '';
         diffAlteredOutput.innerHTML = '';
         diffSummary.style.display = 'flex';
-        if (diffData.diff_type === "Texto") {
+
+        // --- LÓGICA DE RENDERIZAÇÃO CORRIGIDA ---
+        // Agora, tanto 'Texto' quanto 'Java Properties' usam o side-by-side
+        if (diffData.diff_type === "Texto" || diffData.diff_type === "Java Properties") {
             diffDisplayGrid.style.gridTemplateColumns = '1fr 1fr';
-            diffData.diff_lines_original.forEach(line => { diffOriginalOutput.appendChild(createLineElement(line)); });
-            diffData.diff_lines_altered.forEach(line => { diffAlteredOutput.appendChild(createLineElement(line)); });
-        } else {
+            
+            diffData.diff_lines_original.forEach(line => {
+                diffOriginalOutput.appendChild(createLineElement(line));
+            });
+
+            diffData.diff_lines_altered.forEach(line => {
+                diffAlteredOutput.appendChild(createLineElement(line));
+            });
+        } else { // Apenas JSON usará o painel único
             diffDisplayGrid.style.gridTemplateColumns = '1fr';
             const line = diffData.diff_lines_original[0] || { content: 'Nenhuma diferença encontrada.' };
             const preElement = document.createElement('pre');
@@ -47,21 +58,29 @@ document.addEventListener('DOMContentLoaded', () => {
             diffOriginalOutput.appendChild(preElement);
             diffAlteredOutput.innerHTML = '';
         }
+        
+        // --- ATUALIZAÇÃO DO SUMÁRIO ---
         const summary = diffData.summary || {};
         const removals = summary.removals ?? 0;
         const additions = summary.additions ?? 0;
         const changes = summary.changes ?? 0;
+
         removalsCount.textContent = `${removals} remoções`;
         additionsCount.textContent = `${additions} adições`;
+        
         if (changes > 0) {
             changesCount.textContent = `${changes} alterações`;
             changesCount.style.display = 'inline';
         } else {
             changesCount.style.display = 'none';
         }
-        if (diffData.diff_type === "Texto") {
-            linesOriginalCount.textContent = `${summary.total_lines_original} linhas`;
-            linesAlteredCount.textContent = `${summary.total_lines_altered} linhas`;
+
+        // Mostra a contagem de linhas para Properties também
+        if (diffData.diff_type === "Texto" || diffData.diff_type === "Java Properties") {
+            const totalOriginal = diffData.diff_type === "Texto" ? summary.total_lines_original : removals + changes;
+            const totalAltered = diffData.diff_type === "Texto" ? summary.total_lines_altered : additions + changes;
+            linesOriginalCount.textContent = `${totalOriginal} linhas`;
+            linesAlteredCount.textContent = `${totalAltered} linhas`;
             linesOriginalCount.style.display = 'inline';
             linesAlteredCount.style.display = 'inline';
         } else {
@@ -70,14 +89,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ... (Resto do arquivo JS sem alterações)
     async function findDifference() {
         compareBtn.disabled = true;
         diffSummary.style.display = 'none';
         diffOriginalOutput.innerHTML = '<div class="diff-line context"><span class="line-content">Comparando...</span></div>';
         diffAlteredOutput.innerHTML = '';
-
         const isProperties = propertiesSwitch.checked;
-
         try {
             const response = await fetch('/api/compare', {
                 method: 'POST',
@@ -99,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
             compareBtn.disabled = false;
         }
     }
-
     compareBtn.addEventListener('click', findDifference);
     const currentTheme = localStorage.getItem('theme');
     if (currentTheme) { document.body.classList.add(currentTheme); } 
