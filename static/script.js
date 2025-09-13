@@ -70,16 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
             linesAlteredCount.textContent = `${summary.total_lines_altered} linhas`;
             linesOriginalCount.style.display = 'inline';
             linesAlteredCount.style.display = 'inline';
-        } else {
-             // Para Properties, a contagem de linhas é o total de chaves únicas
-            const totalLines = Math.max(
-                (summary.removals ?? 0) + (summary.additions ?? 0) + (summary.changes ?? 0),
-                diffData.diff_lines_original.filter(l => l.type !== 'empty').length,
-                diffData.diff_lines_altered.filter(l => l.type !== 'empty').length
-            );
-            linesOriginalCount.textContent = `${totalLines} chaves`;
+        } else if (diffData.diff_type === "Java Properties") {
+            const totalKeys = diffData.diff_lines_original.filter(l => l.type !== 'empty' || l.content !== '').length;
+            linesOriginalCount.textContent = `${totalKeys} chaves`;
             linesAlteredCount.textContent = ``;
             linesOriginalCount.style.display = 'inline';
+            linesAlteredCount.style.display = 'none';
+        } else { // JSON
+            linesOriginalCount.style.display = 'none';
             linesAlteredCount.style.display = 'none';
         }
     }
