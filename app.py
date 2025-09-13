@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import re # Módulo de expressões regulares importado
 from flask import Flask, render_template, request, jsonify
 import difflib
 from deepdiff import DeepDiff
@@ -81,11 +82,18 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        logging.info("Comparação de 'Properties' solicitada. Usando o analisador avançado de alinhamento de bloco.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o analisador com normalização de múltiplas linhas.")
         try:
+            # --- NOVA FUNÇÃO DE NORMALIZAÇÃO ---
+            def normalize_properties_text(text):
+                # Substitui quebras de linha que são parte de um valor pelo caractere literal "\\n"
+                return re.sub(r'\n\s*(?![\w.#])', r'\\n', text)
+
             p_original, p_altered = Properties(), Properties()
-            p_original.load(BytesIO(original_content.encode('utf-8')))
-            p_altered.load(BytesIO(altered_content.encode('utf-8')))
+            
+            # Carrega o conteúdo JÁ NORMALIZADO
+            p_original.load(BytesIO(normalize_properties_text(original_content).encode('utf-8')))
+            p_altered.load(BytesIO(normalize_properties_text(altered_content).encode('utf-8')))
             
             original_dict = p_original.properties
             altered_dict = p_altered.properties
@@ -94,7 +102,6 @@ def compare_api():
             altered_keys = [k for k, v in p_altered.items()]
             
             key_matcher = difflib.SequenceMatcher(None, original_keys, altered_keys)
-
             o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
 
             for tag, i1, i2, j1, j2 in key_matcher.get_opcodes():
@@ -113,16 +120,14 @@ def compare_api():
                         if old_key is not None:
                             o_line_num += 1
                             removals += 1
-                            old_value = original_dict[old_key]
-                            result_data['diff_lines_original'].append({'content': f"{old_key} = {old_value}", 'type': 'removed', 'line_num': o_line_num})
+                            result_data['diff_lines_original'].append({'content': f"{old_key} = {original_dict[old_key]}", 'type': 'removed', 'line_num': o_line_num})
                         else:
                             result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
 
                         if new_key is not None:
                             a_line_num += 1
                             additions += 1
-                            new_value = altered_dict[new_key]
-                            result_data['diff_lines_altered'].append({'content': f"{new_key} = {new_value}", 'type': 'added', 'line_num': a_line_num})
+                            result_data['diff_lines_altered'].append({'content': f"{new_key} = {altered_dict[new_key]}", 'type': 'added', 'line_num': a_line_num})
                         else:
                             result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
             
