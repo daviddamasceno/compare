@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lineContentSpan.className = 'line-content';
         
         const content = line.content.replace(/ /g, '&nbsp;') || '&nbsp;';
+        // O wrapper é necessário para a lógica de indentação no CSS
         lineContentSpan.innerHTML = `<span class="text-wrapper">${content}</span>`;
 
         lineDiv.appendChild(lineNumSpan);
@@ -33,20 +34,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return lineDiv;
     }
 
+    // --- FUNÇÃO renderDiff COMPLETAMENTE CORRIGIDA ---
     function renderDiff(diffData) {
         diffOriginalOutput.innerHTML = '';
         diffAlteredOutput.innerHTML = '';
         diffSummary.style.display = 'flex';
 
-        // Se não for um diff de texto, o resultado é um bloco único
-        if (diffData.diff_type !== "Texto") {
-            const line = diffData.diff_lines_original[0] || { content: 'Aguardando comparação...', type: 'context', line_num: '' };
-            const preElement = document.createElement('pre');
-            preElement.textContent = line.content; // Usar textContent para segurança
-            diffOriginalOutput.appendChild(preElement);
-            diffAlteredOutput.innerHTML = '';
-        } else {
-            // Lógica existente para diff de texto side-by-side
+        // LÓGICA CORRETA: Verifica o tipo de diff para decidir como renderizar
+        if (diffData.diff_type === "Texto") {
+            // Se for texto, renderiza lado a lado (side-by-side)
             diffData.diff_lines_original.forEach(line => {
                 diffOriginalOutput.appendChild(createLineElement(line));
             });
@@ -54,9 +50,17 @@ document.addEventListener('DOMContentLoaded', () => {
             diffData.diff_lines_altered.forEach(line => {
                 diffAlteredOutput.appendChild(createLineElement(line));
             });
+        } else {
+            // Se for JSON ou Properties, renderiza o resultado em um painel único
+            const line = diffData.diff_lines_original[0] || { content: 'Nenhuma diferença encontrada.', type: 'context' };
+            const preElement = document.createElement('pre');
+            preElement.textContent = line.content;
+            diffOriginalOutput.appendChild(preElement);
+            // Garante que o painel direito fique vazio
+            diffAlteredOutput.innerHTML = '';
         }
         
-        // Atualizar resumo, tratando valores nulos ou indefinidos
+        // Lógica para atualizar o sumário (já estava correta)
         const summary = diffData.summary || {};
         const removals = summary.removals ?? 0;
         const additions = summary.additions ?? 0;
@@ -92,9 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/compare', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     original: originalTextarea.value,
                     altered: alteredTextarea.value
@@ -119,10 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     compareBtn.addEventListener('click', findDifference);
 
+    // Lógica de tema e copiar (sem alterações)
     const currentTheme = localStorage.getItem('theme');
-    if (currentTheme) {
-        document.body.classList.add(currentTheme);
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    if (currentTheme) { document.body.classList.add(currentTheme); } 
+    else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.body.classList.add('dark-mode');
     }
 
@@ -133,11 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function copyToClipboard(element) {
-        navigator.clipboard.writeText(element.value).then(() => {
-            alert('Conteúdo copiado para a área de transferência!');
-        }).catch(err => {
-            console.error('Falha ao copiar:', err);
-        });
+        navigator.clipboard.writeText(element.value)
+            .then(() => alert('Conteúdo copiado para a área de transferência!'))
+            .catch(err => console.error('Falha ao copiar:', err));
     }
 
     copyOriginalBtn.addEventListener('click', () => copyToClipboard(originalTextarea));
