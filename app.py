@@ -11,9 +11,8 @@ from io import BytesIO
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 app = Flask(__name__)
 
-# ... (funções format_deepdiff e highlight_intra_line_diff sem alterações) ...
+# A função format_deepdiff agora será usada apenas para JSON
 def format_deepdiff(diff):
-    logging.info("Iniciando a formatação do resultado do DeepDiff.")
     report_lines = []
     change_types = {'dictionary_item_added': "Chave Adicionada", 'dictionary_item_removed': "Chave Removida", 'values_changed': "Valor Alterado", 'type_changes': "Tipo Alterado"}
     for change_type, friendly_name in change_types.items():
@@ -26,10 +25,10 @@ def format_deepdiff(diff):
                 for path in items: report_lines.append(str(path))
             report_lines.append("")
     if not report_lines: return "Nenhuma diferença encontrada."
-    formatted_report = "\n".join(report_lines)
-    logging.info(f"Relatório formatado gerado com {len(report_lines)} linhas.")
-    return formatted_report
+    return "\n".join(report_lines)
+
 def highlight_intra_line_diff(old_line, new_line):
+    # ... (função sem alterações)
     matcher = difflib.SequenceMatcher(None, old_line, new_line)
     def escape(s): return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     old_html, new_html = '', ''
@@ -54,30 +53,55 @@ def compare_api():
     data = request.json
     original_content = data.get('original', '')
     altered_content = data.get('altered', '')
-    is_properties = data.get('is_properties', False) # LÊ O NOVO DADO
+    is_properties = data.get('is_properties', False)
     
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
-    # --- NOVA LÓGICA BASEADA NO SWITCH ---
     if is_properties:
-        logging.info("Comparação de 'Properties' solicitada pelo usuário.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o novo analisador manual.")
         try:
             p_original, p_altered = Properties(), Properties()
             p_original.load(BytesIO(original_content.encode('utf-8')))
             p_altered.load(BytesIO(altered_content.encode('utf-8')))
-            diff = DeepDiff(p_original.properties, p_altered.properties)
+            
+            original_dict = p_original.properties
+            altered_dict = p_altered.properties
+            
+            report_lines = []
+            removals, additions, changes = 0, 0, 0
+
+            # --- NOVA LÓGICA DE COMPARAÇÃO MANUAL ---
+            
+            # 1. Encontrar chaves removidas e valores alterados
+            for key, old_value in original_dict.items():
+                if key not in altered_dict:
+                    report_lines.append(f"--- Chave Removida ---\n{key} = {old_value}\n")
+                    removals += 1
+                elif old_value != altered_dict[key]:
+                    new_value = altered_dict[key]
+                    report_lines.append(f"--- Valor Alterado ---\nEm '{key}':\n- DE: {old_value}\n+ PARA: {new_value}\n")
+                    changes += 1
+
+            # 2. Encontrar chaves adicionadas
+            for key, new_value in altered_dict.items():
+                if key not in original_dict:
+                    report_lines.append(f"--- Chave Adicionada ---\n{key} = {new_value}\n")
+                    additions += 1
+            
             result_data['diff_type'] = "Java Properties"
-            if diff:
-                logging.info(f"Análise Properties bem-sucedida. Encontradas {len(diff)} categorias de diferenças.")
-                result_data['diff_lines_original'] = [{'content': format_deepdiff(diff), 'type': 'context', 'line_num': 1}]
-                result_data['summary'] = {'removals': len(diff.get('dictionary_item_removed', [])), 'additions': len(diff.get('dictionary_item_added', [])), 'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))}
-            else:
-                logging.info("Análise Properties bem-sucedida. Nenhuma diferença encontrada.")
+            
+            if not report_lines:
+                logging.info("Análise Properties manual bem-sucedida. Nenhuma diferença encontrada.")
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
+            else:
+                logging.info(f"Análise Properties manual bem-sucedida. Encontradas {removals} remoções, {additions} adições, {changes} alterações.")
+                result_data['diff_lines_original'] = [{'content': "\n".join(report_lines), 'type': 'context', 'line_num': 1}]
+            
+            result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes}
             return jsonify(result_data)
+
         except Exception as e:
             logging.error(f"Falha ao analisar como Properties (mesmo com o switch ativado): {e}", exc_info=True)
-            # Retorna um erro claro para o frontend
             error_result = {'diff_lines_original': [{'content': f"Erro ao analisar o arquivo como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
             return jsonify(error_result), 400
     
@@ -97,7 +121,6 @@ def compare_api():
             return jsonify(result_data)
         except Exception:
             logging.info("Não é JSON. Recorrendo à comparação de texto simples.")
-            # ... (Lógica de diff de texto permanece aqui)
             original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
             matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
             o_line_num, a_line_num, removals, additions = 0, 0, 0, 0
