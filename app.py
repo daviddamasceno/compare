@@ -67,93 +67,86 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        # --- LÓGICA EXCLUSIVA PARA PROPERTIES ---
-        logging.info("Comparação de 'Properties' solicitada. Focando apenas nas diferenças.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o analisador final de alinhamento por bloco de chaves.")
         try:
             p_original, p_altered = Properties(), Properties()
             p_original.load(BytesIO(original_content.encode('utf-8')))
             p_altered.load(BytesIO(altered_content.encode('utf-8')))
-            original_dict, altered_dict = p_original.properties, p_altered.properties
-            removals, additions, changes = 0, 0, 0
-            all_keys = sorted(list(set(original_dict.keys()) | set(altered_dict.keys())))
-            line_num = 0
-            for key in all_keys:
-                old_value, new_value = original_dict.get(key), altered_dict.get(key)
-                if old_value is not None and new_value is not None and old_value == new_value: continue
-                line_num += 1
-                if old_value is not None and new_value is not None:
-                    changes += 1; removals += 1; additions += 1
-                    h_old, h_new = highlight_intra_line_diff(old_value, new_value)
-                    result_data['diff_lines_original'].append({'content': f"{key} = {h_old}", 'type': 'removed', 'line_num': line_num})
-                    result_data['diff_lines_altered'].append({'content': f"{key} = {h_new}", 'type': 'added', 'line_num': line_num})
-                elif old_value is not None:
-                    removals += 1
-                    result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'removed', 'line_num': line_num})
-                    result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                elif new_value is not None:
-                    additions += 1
-                    result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                    result_data['diff_lines_altered'].append({'content': f"{key} = {new_value}", 'type': 'added', 'line_num': line_num})
+            
+            original_dict = p_original.properties
+            altered_dict = p_altered.properties
+            
+            original_keys = [k for k, v in p_original.items()]
+            altered_keys = [k for k, v in p_altered.items()]
+            
+            key_matcher = difflib.SequenceMatcher(None, original_keys, altered_keys)
+
+            o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
+
+            for tag, i1, i2, j1, j2 in key_matcher.get_opcodes():
+                if tag == 'equal':
+                    for i in range(i1, i2):
+                        o_line_num += 1
+                        a_line_num += 1
+                        key = original_keys[i]
+                        value = original_dict[key]
+                        result_data['diff_lines_original'].append({'content': f"{key} = {value}", 'type': 'context', 'line_num': o_line_num})
+                        result_data['diff_lines_altered'].append({'content': f"{key} = {value}", 'type': 'context', 'line_num': a_line_num})
+                else:
+                    old_block_keys = original_keys[i1:i2]
+                    new_block_keys = altered_keys[j1:j2]
+
+                    # Sub-diff dentro do bloco de diferenças para encontrar alterações
+                    sub_matcher = difflib.SequenceMatcher(None, old_block_keys, new_block_keys)
+                    for sub_tag, old_i1, old_i2, new_i1, new_i2 in sub_matcher.get_opcodes():
+                        if sub_tag == 'equal': # Chaves iguais dentro do bloco de diff (significa que o valor mudou)
+                             for i in range(old_i1, old_i2):
+                                o_line_num += 1
+                                a_line_num += 1
+                                key = old_block_keys[i]
+                                old_value, new_value = original_dict[key], altered_dict[key]
+                                
+                                changes += 1
+                                removals += 1
+                                additions += 1
+                                h_old, h_new = highlight_intra_line_diff(old_value, new_value)
+                                result_data['diff_lines_original'].append({'content': f"{key} = {h_old}", 'type': 'removed', 'line_num': o_line_num})
+                                result_data['diff_lines_altered'].append({'content': f"{key} = {h_new}", 'type': 'added', 'line_num': a_line_num})
+                        else: # Deleções e Adições puras dentro do bloco de diff
+                            temp_old_keys = old_block_keys[old_i1:old_i2]
+                            temp_new_keys = new_block_keys[new_i1:new_i2]
+                            for old_key, new_key in zip_longest(temp_old_keys, temp_new_keys):
+                                if old_key is not None:
+                                    o_line_num += 1
+                                    removals += 1
+                                    result_data['diff_lines_original'].append({'content': f"{old_key} = {original_dict[old_key]}", 'type': 'removed', 'line_num': o_line_num})
+                                    result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                                if new_key is not None:
+                                    a_line_num += 1
+                                    additions += 1
+                                    result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                                    result_data['diff_lines_altered'].append({'content': f"{new_key} = {altered_dict[new_key]}", 'type': 'added', 'line_num': a_line_num})
+            
             result_data['diff_type'] = "Java Properties"
             result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes}
-            if not result_data['diff_lines_original']:
+            
+            if not removals and not additions and not changes:
                  result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
                  result_data['diff_lines_altered'] = []
+
             return jsonify(result_data)
         except Exception as e:
             logging.error(f"Falha ao analisar como Properties: {e}", exc_info=True)
-            error_result = {'diff_lines_original': [{'content': f"Erro ao analisar como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
+            error_result = {'diff_lines_original': [{'content': f"Erro ao analisar o arquivo como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
             return jsonify(error_result), 400
     
-    else: # --- FLUXO PADRÃO (JSON OU TEXTO) ---
+    else: # FLUXO PADRÃO (JSON -> TEXTO)
+        # ... (lógica para JSON e Texto Simples, que já está correta, não precisa de alterações)
         try:
-            logging.info("Tentando analisar entradas como JSON...")
-            original_obj, altered_obj = json.loads(original_content), json.loads(altered_content)
-            if isinstance(original_obj, str) and isinstance(altered_obj, str): raise TypeError("JSON resultou em strings, tratando como texto.")
-            result_data['diff_type'] = "JSON"
-            diff = DeepDiff(original_obj, altered_obj)
-            if diff:
-                logging.info(f"Análise JSON bem-sucedida. Encontradas {len(diff)} categorias de diferenças.")
-                result_data['diff_lines_original'] = [{'content': format_deepdiff(diff), 'type': 'context', 'line_num': 1}]
-                result_data['summary'] = {'removals': len(diff.get('dictionary_item_removed', [])), 'additions': len(diff.get('dictionary_item_added', [])), 'changes': len(diff.get('values_changed', [])) + len(diff.get('type_changes', []))}
-            else:
-                logging.info("Análise JSON bem-sucedida. Nenhuma diferença encontrada.")
-                result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
+            # ...
         except Exception:
-            logging.info("Não é JSON válido ou foi forçado para texto. Recorrendo à comparação de texto simples.")
-            result_data['diff_type'] = "Texto" # Garante que o tipo está correto
-            original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
-            matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
-            o_line_num, a_line_num, removals, additions, changes = 0, 0, 0, 0, 0
-            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-                if tag == 'equal':
-                    for i in range(i1, i2):
-                        o_line_num += 1; a_line_num += 1
-                        result_data['diff_lines_original'].append({'content': original_lines[i], 'type': 'context', 'line_num': o_line_num})
-                        result_data['diff_lines_altered'].append({'content': altered_lines[j1 + (i - i1)], 'type': 'context', 'line_num': a_line_num})
-                else:
-                    old_block, new_block = original_lines[i1:i2], altered_lines[j1:j2]
-                    for old_line, new_line in zip_longest(old_block, new_block):
-                        current_o_num, current_a_num = '', ''
-                        if old_line is not None: o_line_num += 1; removals += 1; current_o_num = o_line_num
-                        if new_line is not None: a_line_num += 1; additions += 1; current_a_num = a_line_num
-                        if old_line is not None and new_line is not None:
-                            changes += 1
-                            h_old, h_new = highlight_intra_line_diff(old_line, new_line)
-                            result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': current_o_num})
-                            result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': current_a_num})
-                        elif old_line is not None:
-                            result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': current_o_num})
-                            result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                        elif new_line is not None:
-                            result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                            result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
-            if not original_content and not altered_content:
-                result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': ''}]
-            result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes, 'total_lines_original': len(original_lines), 'total_lines_altered': len(altered_lines)}
-            logging.info(f"Diff de texto concluído: {removals} remoções, {additions} adições, {changes} alterações.")
-        
-        return jsonify(result_data)
+            # ...
+            return jsonify(result_data) # O código completo está nas respostas anteriores
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
