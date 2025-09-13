@@ -57,8 +57,7 @@ def compare_api():
     result_data = {'diff_lines_original': [], 'diff_lines_altered': [], 'diff_type': "Texto", 'summary': {'removals': 0, 'additions': 0, 'changes': 0}}
 
     if is_properties:
-        # ... (início do bloco 'if is_properties' sem alterações) ...
-        logging.info("Comparação de 'Properties' solicitada. Usando o analisador manual side-by-side.")
+        logging.info("Comparação de 'Properties' solicitada. Usando o analisador final de alinhamento por chave.")
         try:
             p_original, p_altered = Properties(), Properties()
             p_original.load(BytesIO(original_content.encode('utf-8')))
@@ -69,52 +68,43 @@ def compare_api():
             
             removals, additions, changes = 0, 0, 0
             
+            # --- ALGORITMO FINAL DE ALINHAMENTO POR CHAVE ---
             all_keys = sorted(list(set(original_dict.keys()) | set(altered_dict.keys())))
             
             line_num = 0
             for key in all_keys:
-                # Esta lógica agora é tratada dentro do loop de diff de texto
-                pass
-            
-            # --- CORREÇÃO FINAL DE ALINHAMENTO ---
-            # Vamos reutilizar a robusta lógica de diff de texto, mas com as linhas formatadas de properties
-            original_lines_formatted = [f"{k} = {v}" for k, v in sorted(original_dict.items())]
-            altered_lines_formatted = [f"{k} = {v}" for k, v in sorted(altered_dict.items())]
+                line_num += 1
+                old_value = original_dict.get(key)
+                new_value = altered_dict.get(key)
 
-            matcher = difflib.SequenceMatcher(None, original_lines_formatted, altered_lines_formatted)
-            o_line_num, a_line_num = 0, 0
-
-            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-                if tag == 'equal':
-                    for i in range(i1, i2):
-                        o_line_num += 1; a_line_num += 1
-                        line = original_lines_formatted[i]
-                        result_data['diff_lines_original'].append({'content': line, 'type': 'context', 'line_num': o_line_num})
-                        result_data['diff_lines_altered'].append({'content': line, 'type': 'context', 'line_num': a_line_num})
-                else:
-                    old_block = original_lines_formatted[i1:i2]
-                    new_block = altered_lines_formatted[j1:j2]
-                    for old_line, new_line in zip_longest(old_block, new_block):
-                        current_o_num, current_a_num = '', ''
-                        if old_line is not None: 
-                            o_line_num += 1; removals += 1; current_o_num = o_line_num
-                        if new_line is not None: 
-                            a_line_num += 1; additions += 1; current_a_num = a_line_num
-                        
-                        if old_line is not None and new_line is not None:
-                            changes += 1
-                            h_old, h_new = highlight_intra_line_diff(old_line, new_line)
-                            result_data['diff_lines_original'].append({'content': h_old, 'type': 'removed', 'line_num': current_o_num})
-                            result_data['diff_lines_altered'].append({'content': h_new, 'type': 'added', 'line_num': current_a_num})
-                        elif old_line is not None:
-                            result_data['diff_lines_original'].append({'content': old_line, 'type': 'removed', 'line_num': current_o_num})
-                            result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                        elif new_line is not None:
-                            result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
-                            result_data['diff_lines_altered'].append({'content': new_line, 'type': 'added', 'line_num': current_a_num})
+                # Caso 1: A chave existe em ambos os arquivos
+                if old_value is not None and new_value is not None:
+                    if old_value == new_value: # Contexto (sem alteração)
+                        result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'context', 'line_num': line_num})
+                        result_data['diff_lines_altered'].append({'content': f"{key} = {new_value}", 'type': 'context', 'line_num': line_num})
+                    else: # Valor Alterado
+                        changes += 1
+                        removals += 1
+                        additions += 1
+                        highlighted_old, highlighted_new = highlight_intra_line_diff(old_value, new_value)
+                        result_data['diff_lines_original'].append({'content': f"{key} = {highlighted_old}", 'type': 'removed', 'line_num': line_num})
+                        result_data['diff_lines_altered'].append({'content': f"{key} = {highlighted_new}", 'type': 'added', 'line_num': line_num})
+                
+                # Caso 2: A chave só existe no arquivo original (Remoção)
+                elif old_value is not None:
+                    removals += 1
+                    result_data['diff_lines_original'].append({'content': f"{key} = {old_value}", 'type': 'removed', 'line_num': line_num})
+                    result_data['diff_lines_altered'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                
+                # Caso 3: A chave só existe no arquivo alterado (Adição)
+                elif new_value is not None:
+                    additions += 1
+                    result_data['diff_lines_original'].append({'content': '', 'type': 'empty', 'line_num': ''})
+                    result_data['diff_lines_altered'].append({'content': f"{key} = {new_value}", 'type': 'added', 'line_num': line_num})
 
             result_data['diff_type'] = "Java Properties"
             result_data['summary'] = {'removals': removals, 'additions': additions, 'changes': changes}
+            
             if not removals and not additions and not changes:
                  result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
                  result_data['diff_lines_altered'] = []
@@ -122,14 +112,13 @@ def compare_api():
             return jsonify(result_data)
 
         except Exception as e:
-            # ... (bloco de erro sem alterações)
             logging.error(f"Falha ao analisar como Properties: {e}", exc_info=True)
             error_result = {'diff_lines_original': [{'content': f"Erro ao analisar o arquivo como .properties:\n{e}", 'type': 'error'}], 'summary': {}}
             return jsonify(error_result), 400
     
     else: # FLUXO PADRÃO (JSON -> TEXTO)
+        # ... (lógica para JSON e Texto Simples, que já está correta, não precisa de alterações)
         try:
-            # ... (lógica JSON sem alterações)
             logging.info("Tentando analisar entradas como JSON...")
             original_obj, altered_obj = json.loads(original_content), json.loads(altered_content)
             result_data['diff_type'] = "JSON"
@@ -141,7 +130,6 @@ def compare_api():
                 result_data['diff_lines_original'] = [{'content': "Nenhuma diferença encontrada.", 'type': 'none', 'line_num': 1}]
             return jsonify(result_data)
         except Exception:
-            # ... (lógica de diff de texto já existente, agora também usada por properties)
             logging.info("Não é JSON. Recorrendo à comparação de texto simples.")
             original_lines, altered_lines = original_content.splitlines(), altered_content.splitlines()
             matcher = difflib.SequenceMatcher(None, original_lines, altered_lines)
